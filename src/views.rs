@@ -1,14 +1,34 @@
-// SPDX-License-Idnetifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 use crate::{Error, Multisig};
-use multicodec::Codec;
+use multi_codec::Codec;
 
 /// BLS12 381 G1/G2 signature implementation
 pub mod bls12381;
 /// Edwards curve 25519 signature implementation
 pub mod ed25519;
+/// Generic Ed25519 hybrid signature view (codec-agnostic holder)
+pub(crate) mod ed25519_hybrid;
+/// Ed25519-MAYO2 hybrid signature implementation
+pub(crate) mod ed25519_mayo2;
+/// FN-DSA post-quantum signature implementation; FIPS 206 (draft)
+pub mod fn_dsa;
+/// MAYO post-quantum multivariate signature implementation
+pub mod mayo;
+/// ML-DSA post-quantum signature implementation; FIPS 204
+pub mod ml_dsa;
+/// NIST P-256/P-384/P-521 ECDSA signature implementation
+pub mod nist_p;
+/// RSA-SHA256 signature implementation
+pub mod rsa;
 /// Koblitz 256k1 curve implmentation (a.k.a. the Bitcoin curve)
 pub mod secp256k1;
+/// SLH-DSA post-quantum signature implementation; FIPS 205
+pub mod slh_dsa;
 
+///
+/// Attributes views let you inquire about the Multisig and retrieve data
+/// associated with the particular view.
+///
 /// trait for returning the attributes of the Multisig
 pub trait AttrView {
     /// get the codec that the signed message was encoded with
@@ -36,7 +56,7 @@ pub trait ThresholdAttrView {
     /// get the limit value for this multisig share
     fn limit(&self) -> Result<usize, Error>;
     /// get the identifier value for this multisig share
-    fn identifier(&self) -> Result<u8, Error>;
+    fn identifier(&self) -> Result<&[u8], Error>;
     /// get the threshold data associated with the signature
     fn threshold_data(&self) -> Result<&[u8], Error>;
 }
