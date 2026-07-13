@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Type-safe wrappers for signature components
 
-use multi_codec::Codec;
 use core::fmt;
+use multi_codec::Codec;
 
 /// A cryptographic signature
 ///

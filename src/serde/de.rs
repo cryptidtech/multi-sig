@@ -3,9 +3,9 @@ use crate::{
     ms::{self, Attributes},
     AttrId, Multisig,
 };
+use core::fmt;
 use multi_codec::Codec;
 use multi_util::EncodedVarbytes;
-use core::fmt;
 use serde::{
     de::{Error, MapAccess, Visitor},
     Deserialize, Deserializer,

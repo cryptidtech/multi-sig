@@ -29,20 +29,20 @@ pub const SIG_CODECS: [Codec; 35] = [
     Codec::Es384Msig,
     Codec::Es521Msig,
     Codec::Rs256Msig,
-    Codec::SlhDsaSha2128FMsig,
-    Codec::SlhDsaSha2128SMsig,
-    Codec::SlhDsaSha2192FMsig,
-    Codec::SlhDsaSha2192SMsig,
-    Codec::SlhDsaSha2256FMsig,
-    Codec::SlhDsaSha2256SMsig,
-    Codec::SlhDsaShake128FMsig,
-    Codec::SlhDsaShake128SMsig,
-    Codec::SlhDsaShake192FMsig,
-    Codec::SlhDsaShake192SMsig,
-    Codec::SlhDsaShake256FMsig,
-    Codec::SlhDsaShake256SMsig,
-    Codec::MlDsa65Msig,
-    Codec::MlDsa87Msig,
+    Codec::SlhdsaSha2128FMsig,
+    Codec::SlhdsaSha2128SMsig,
+    Codec::SlhdsaSha2192FMsig,
+    Codec::SlhdsaSha2192SMsig,
+    Codec::SlhdsaSha2256FMsig,
+    Codec::SlhdsaSha2256SMsig,
+    Codec::SlhdsaShake128FMsig,
+    Codec::SlhdsaShake128SMsig,
+    Codec::SlhdsaShake192FMsig,
+    Codec::SlhdsaShake192SMsig,
+    Codec::SlhdsaShake256FMsig,
+    Codec::SlhdsaShake256SMsig,
+    Codec::Mldsa65Msig,
+    Codec::Mldsa87Msig,
     Codec::FnDsa512Msig,
     Codec::FnDsa1024Msig,
     Codec::Mayo1Msig,
@@ -221,19 +221,19 @@ impl Views for Multisig {
                 Ok(Box::new(nist_p::View::try_from(self)?))
             }
             Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
-            Codec::SlhDsaSha2128FMsig
-            | Codec::SlhDsaSha2128SMsig
-            | Codec::SlhDsaSha2192FMsig
-            | Codec::SlhDsaSha2192SMsig
-            | Codec::SlhDsaSha2256FMsig
-            | Codec::SlhDsaSha2256SMsig
-            | Codec::SlhDsaShake128FMsig
-            | Codec::SlhDsaShake128SMsig
-            | Codec::SlhDsaShake192FMsig
-            | Codec::SlhDsaShake192SMsig
-            | Codec::SlhDsaShake256FMsig
-            | Codec::SlhDsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
-            Codec::MlDsa65Msig | Codec::MlDsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
+            Codec::SlhdsaSha2128FMsig
+            | Codec::SlhdsaSha2128SMsig
+            | Codec::SlhdsaSha2192FMsig
+            | Codec::SlhdsaSha2192SMsig
+            | Codec::SlhdsaSha2256FMsig
+            | Codec::SlhdsaSha2256SMsig
+            | Codec::SlhdsaShake128FMsig
+            | Codec::SlhdsaShake128SMsig
+            | Codec::SlhdsaShake192FMsig
+            | Codec::SlhdsaShake192SMsig
+            | Codec::SlhdsaShake256FMsig
+            | Codec::SlhdsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
+            Codec::Mldsa65Msig | Codec::Mldsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
             Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
                 Ok(Box::new(fn_dsa::View::try_from(self)?))
             }
@@ -263,19 +263,19 @@ impl Views for Multisig {
                 Ok(Box::new(nist_p::View::try_from(self)?))
             }
             Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
-            Codec::SlhDsaSha2128FMsig
-            | Codec::SlhDsaSha2128SMsig
-            | Codec::SlhDsaSha2192FMsig
-            | Codec::SlhDsaSha2192SMsig
-            | Codec::SlhDsaSha2256FMsig
-            | Codec::SlhDsaSha2256SMsig
-            | Codec::SlhDsaShake128FMsig
-            | Codec::SlhDsaShake128SMsig
-            | Codec::SlhDsaShake192FMsig
-            | Codec::SlhDsaShake192SMsig
-            | Codec::SlhDsaShake256FMsig
-            | Codec::SlhDsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
-            Codec::MlDsa65Msig | Codec::MlDsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
+            Codec::SlhdsaSha2128FMsig
+            | Codec::SlhdsaSha2128SMsig
+            | Codec::SlhdsaSha2192FMsig
+            | Codec::SlhdsaSha2192SMsig
+            | Codec::SlhdsaSha2256FMsig
+            | Codec::SlhdsaSha2256SMsig
+            | Codec::SlhdsaShake128FMsig
+            | Codec::SlhdsaShake128SMsig
+            | Codec::SlhdsaShake192FMsig
+            | Codec::SlhdsaShake192SMsig
+            | Codec::SlhdsaShake256FMsig
+            | Codec::SlhdsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
+            Codec::Mldsa65Msig | Codec::Mldsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
             Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
                 Ok(Box::new(fn_dsa::View::try_from(self)?))
             }
@@ -305,19 +305,19 @@ impl Views for Multisig {
                 Ok(Box::new(nist_p::View::try_from(self)?))
             }
             Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
-            Codec::SlhDsaSha2128FMsig
-            | Codec::SlhDsaSha2128SMsig
-            | Codec::SlhDsaSha2192FMsig
-            | Codec::SlhDsaSha2192SMsig
-            | Codec::SlhDsaSha2256FMsig
-            | Codec::SlhDsaSha2256SMsig
-            | Codec::SlhDsaShake128FMsig
-            | Codec::SlhDsaShake128SMsig
-            | Codec::SlhDsaShake192FMsig
-            | Codec::SlhDsaShake192SMsig
-            | Codec::SlhDsaShake256FMsig
-            | Codec::SlhDsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
-            Codec::MlDsa65Msig | Codec::MlDsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
+            Codec::SlhdsaSha2128FMsig
+            | Codec::SlhdsaSha2128SMsig
+            | Codec::SlhdsaSha2192FMsig
+            | Codec::SlhdsaSha2192SMsig
+            | Codec::SlhdsaSha2256FMsig
+            | Codec::SlhdsaSha2256SMsig
+            | Codec::SlhdsaShake128FMsig
+            | Codec::SlhdsaShake128SMsig
+            | Codec::SlhdsaShake192FMsig
+            | Codec::SlhdsaShake192SMsig
+            | Codec::SlhdsaShake256FMsig
+            | Codec::SlhdsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
+            Codec::Mldsa65Msig | Codec::Mldsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
             Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
                 Ok(Box::new(fn_dsa::View::try_from(self)?))
             }

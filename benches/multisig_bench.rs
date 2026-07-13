@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Performance benchmarks for multi-sig
 
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use multi_codec::Codec;
 use multi_sig::{Builder, Multisig, SIG_CODECS};
 use multi_trait::TryDecodeFrom;
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;
 
 /// Benchmark signature creation
