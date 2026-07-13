@@ -1,6 +1,6 @@
 [package]
 name = "multi-sig"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multisig self-describing multicodec implementation for digital signatures"
@@ -14,12 +14,12 @@ categories = ["cryptography", "encoding"]
 default = ["serde"]
 
 [dependencies]
-# blsful configured per-target below (blst for native, rust for wasm)
-multi-base = { version = "1.0", path = "../multi-base" }
-multi-codec = { version = "1.0", path = "../multi-codec" }
-multi-trait = { version = "1.0", path = "../multi-trait" }
-multi-util = { version = "1.0", path = "../multi-util" }
 elliptic-curve = "0.14"
+# blsful configured per-target below (blst for native, rust for wasm)
+multi-base = "1.0"
+multi-codec = "1.0"
+multi-trait = "1.0"
+multi-util = "1.0"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
 ssh-encoding = "0.3"
 thiserror = { version = "2.0" }
