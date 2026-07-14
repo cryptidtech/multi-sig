@@ -1,6 +1,6 @@
 [package]
 name = "multi-sig"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multisig self-describing multicodec implementation for digital signatures"
@@ -14,16 +14,21 @@ categories = ["cryptography", "encoding"]
 default = ["serde"]
 
 [dependencies]
+ciborium = "0.2"
+chacha20poly1305 = "0.10"
 elliptic-curve = "0.14"
+getrandom = { version = "0.2" }
 # blsful configured per-target below (blst for native, rust for wasm)
 multi-base = "1.0"
 multi-codec = "1.0"
+multi-key = { version = "1.0", path = "../multi-key" }
 multi-trait = "1.0"
 multi-util = "1.0"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
 ssh-encoding = "0.3"
 thiserror = { version = "2.0" }
 unsigned-varint = { version = "0.8", features = ["std"] }
+zeroize = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 blsful = { version = "4.0.0-rc1", default-features = false, features = ["rust"] }

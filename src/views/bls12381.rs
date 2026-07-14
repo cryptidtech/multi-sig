@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     error::{AttributesError, ConversionsError, SharesError},
+    views::threshold_meta,
     AttrId, AttrView, Builder, ConvView, DataView, Error, Multisig, ThresholdAttrView,
     ThresholdView, Views,
 };
+use multi_key::ThresholdDisclosure;
 use blsful::{
     inner_types::{G1Projective, G2Projective, Scalar},
     vsss_rs::{IdentifierPrimeField, Share, ValueGroup},
@@ -793,6 +795,213 @@ impl<'a> ThresholdView for View<'a> {
                 } else {
                     builder.try_build()
                 }
+            }
+            _ => Err(Error::UnsupportedAlgorithm(self.ms.codec.to_string())),
+        }
+    }
+
+    /// Get shares with a specific disclosure mode applied.
+    fn shares_with_disclosure(
+        &self,
+        mode: ThresholdDisclosure,
+        meta_key: Option<&multi_key::Multikey>,
+    ) -> Result<Vec<Multisig>, Error> {
+        let shares = self.shares()?;
+        shares
+            .iter()
+            .map(|s| {
+                s.disclosure_view()?
+                    .to_disclosure(mode, meta_key, None)
+            })
+            .collect()
+    }
+
+    /// Add a share with a meta_key for decrypting threshold params.
+    fn add_share_with_meta(
+        &self,
+        share: &Multisig,
+        meta_key: Option<&multi_key::Multikey>,
+    ) -> Result<Multisig, Error> {
+        let (share_t, share_n) =
+            threshold_meta::read_threshold_params(share, meta_key)?;
+
+        let (sdata, identifier, encoding) = {
+            let av = share.attr_view()?;
+            let scheme_type = SchemeTypeId::try_from(av.scheme()?)?;
+            let tav = share.threshold_attr_view()?;
+            let identifier_bytes = tav.identifier()?;
+            if identifier_bytes.len() != 32 {
+                return Err(Error::FailedConversion(
+                    "Insufficient number of identifier bytes".to_string(),
+                ));
+            }
+            let identifier_array = <[u8; 32]>::try_from(identifier_bytes)
+                .map_err(|_| Error::FailedConversion("Incorrect identifier bytes".to_string()))?;
+            let identifier = IdentifierPrimeField(
+                Option::<Scalar>::from(Scalar::from_be_bytes(&identifier_array)).ok_or(
+                    Error::FailedConversion("Incorrect identifier bytes".to_string()),
+                )?,
+            );
+            let dv = share.data_view()?;
+            let sig_bytes = dv.sig_bytes()?;
+            let encoding = {
+                let av = self.ms.attr_view()?;
+                av.payload_encoding().ok()
+            };
+            (
+                SigShare(identifier, share_t, share_n, scheme_type, sig_bytes),
+                identifier,
+                encoding,
+            )
+        };
+
+        let threshold_data: Vec<u8> = {
+            let av = self.ms.threshold_attr_view()?;
+            let mut tdata = match av.threshold_data() {
+                Ok(b) => ThresholdData::try_from(b)
+                    .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
+                Err(_) => ThresholdData::default(),
+            };
+            if tdata.0.contains_key(&identifier) {
+                return Err(SharesError::DuplicateShare.into());
+            }
+            tdata.0.insert(identifier, sdata);
+            tdata.into()
+        };
+
+        let encoding = {
+            let av = self.ms.attr_view()?;
+            match av.payload_encoding() {
+                Ok(encoding) => Some(encoding),
+                Err(_) => encoding,
+            }
+        };
+
+        let builder = Builder::new(self.ms.codec)
+            .with_message_bytes(&self.ms.message.as_slice())
+            .with_threshold(share_t)
+            .with_limit(share_n)
+            .with_threshold_data(&threshold_data);
+
+        if let Some(encoding) = encoding {
+            builder.with_payload_encoding(encoding).try_build()
+        } else {
+            builder.try_build()
+        }
+    }
+
+    /// Combine with a meta_key for decrypting threshold params.
+    fn combine_with_meta(
+        &self,
+        meta_key: Option<&multi_key::Multikey>,
+    ) -> Result<Multisig, Error> {
+        let (threshold, _limit) =
+            threshold_meta::read_threshold_params(self.ms, meta_key)?;
+
+        let threshold_data = {
+            let av = self.ms.threshold_attr_view()?;
+            match av.threshold_data() {
+                Ok(b) => ThresholdData::try_from(b)
+                    .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
+                Err(_) => ThresholdData::default(),
+            }
+        };
+
+        let num_shares = threshold_data.0.len();
+        if num_shares < threshold {
+            return Err(SharesError::NotEnoughShares.into());
+        }
+
+        match self.ms.codec {
+            Codec::Bls12381G1Msig => {
+                let mut share_type_id: Option<SchemeTypeId> = None;
+                let mut shares = Vec::default();
+                threshold_data
+                    .0
+                    .iter()
+                    .try_for_each(|(id, share)| -> Result<(), Error> {
+                        let bytes: [u8; 48] = share.4.as_slice().try_into().map_err(|_| {
+                            Error::FailedConversion("Invalid signature share bytes".to_string())
+                        })?;
+                        let inner = Option::from(G1Projective::from_compressed(&bytes)).ok_or(
+                            Error::FailedConversion("Invalid signature share bytes".to_string()),
+                        )?;
+                        let vsss = Share::with_identifier_and_value(*id, ValueGroup(inner));
+                        if let Some(sti) = share_type_id {
+                            if sti != share.3 {
+                                return Err(SharesError::ShareTypeMismatch.into());
+                            }
+                        } else {
+                            share_type_id = Some(share.3);
+                        }
+                        let s = match share.3 {
+                            SchemeTypeId::Basic => SignatureShare::<Bls12381G1Impl>::Basic(vsss),
+                            SchemeTypeId::MessageAugmentation => {
+                                SignatureShare::<Bls12381G1Impl>::MessageAugmentation(vsss)
+                            }
+                            SchemeTypeId::ProofOfPossession => {
+                                SignatureShare::<Bls12381G1Impl>::ProofOfPossession(vsss)
+                            }
+                        };
+                        shares.push(s);
+                        Ok(())
+                    })?;
+
+                let sig = Signature::from_shares(shares.as_slice())
+                    .map_err(|e| SharesError::ShareCombineFailed(e.to_string()))?;
+                let encoding = {
+                    let av = self.ms.attr_view()?;
+                    av.payload_encoding()?
+                };
+                Builder::new_from_bls_signature(&sig)?
+                    .with_message_bytes(&self.ms.message.as_slice())
+                    .with_payload_encoding(encoding)
+                    .try_build()
+            }
+            Codec::Bls12381G2Msig => {
+                let mut share_type_id: Option<SchemeTypeId> = None;
+                let mut shares = Vec::default();
+                threshold_data
+                    .0
+                    .iter()
+                    .try_for_each(|(id, share)| -> Result<(), Error> {
+                        let bytes: [u8; 96] = share.4.as_slice().try_into().map_err(|_| {
+                            Error::FailedConversion("Invalid signature share bytes".to_string())
+                        })?;
+                        let inner = Option::from(G2Projective::from_compressed(&bytes)).ok_or(
+                            Error::FailedConversion("Invalid signature share bytes".to_string()),
+                        )?;
+                        let vsss = Share::with_identifier_and_value(*id, ValueGroup(inner));
+                        if let Some(sti) = share_type_id {
+                            if sti != share.3 {
+                                return Err(SharesError::ShareTypeMismatch.into());
+                            }
+                        } else {
+                            share_type_id = Some(share.3);
+                        }
+                        let s = match share.3 {
+                            SchemeTypeId::Basic => SignatureShare::<Bls12381G2Impl>::Basic(vsss),
+                            SchemeTypeId::MessageAugmentation => {
+                                SignatureShare::<Bls12381G2Impl>::MessageAugmentation(vsss)
+                            }
+                            SchemeTypeId::ProofOfPossession => {
+                                SignatureShare::<Bls12381G2Impl>::ProofOfPossession(vsss)
+                            }
+                        };
+                        shares.push(s);
+                        Ok(())
+                    })?;
+
+                let sig = Signature::from_shares(shares.as_slice())
+                    .map_err(|e| SharesError::ShareCombineFailed(e.to_string()))?;
+                let encoding = {
+                    let av = self.ms.attr_view()?;
+                    av.payload_encoding()?
+                };
+                Builder::new_from_bls_signature(&sig)?
+                    .with_message_bytes(&self.ms.message.as_slice())
+                    .with_payload_encoding(encoding)
+                    .try_build()
             }
             _ => Err(Error::UnsupportedAlgorithm(self.ms.codec.to_string())),
         }

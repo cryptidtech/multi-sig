@@ -85,7 +85,10 @@ pub use types::{SignatureBytes, SignatureScheme};
 
 /// Views on the multisig
 pub mod views;
-pub use views::{AttrView, ConvView, DataView, ThresholdAttrView, ThresholdView, Views};
+pub use views::{
+    AttrView, ConvView, DataView, ThresholdAttrView, ThresholdDisclosureView, ThresholdView,
+    Views,
+};
 
 /// Serde serialization
 #[cfg(feature = "serde")]
