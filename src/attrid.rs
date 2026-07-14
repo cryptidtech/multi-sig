@@ -1,6 +1,6 @@
-// SPDX-License-Idnetifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 use crate::{error::AttributesError, Error};
-use multitrait::{EncodeInto, TryDecodeFrom};
+use multi_trait::{EncodeInto, TryDecodeFrom};
 use std::fmt;
 
 /// enum of attribute identifiers. this is here to avoid collisions between

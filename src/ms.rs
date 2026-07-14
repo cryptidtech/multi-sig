@@ -1,30 +1,61 @@
-// SPDX-License-Idnetifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 use crate::{
     error::AttributesError,
     views::{
         bls12381::{self, SchemeTypeId},
-        ed25519, secp256k1,
+        ed25519, ed25519_hybrid, ed25519_mayo2, fn_dsa, mayo, ml_dsa, nist_p, rsa, secp256k1,
+        slh_dsa,
     },
     AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView, Views,
 };
-use blsful::{inner_types::GroupEncoding, vsss_rs::Share, Signature, SignatureShare};
-use multibase::Base;
-use multicodec::Codec;
-use multitrait::{Null, TryDecodeFrom};
-use multiutil::{BaseEncoded, CodecInfo, EncodingInfo, Varbytes, Varuint};
+use blsful::{
+    inner_types::{GroupEncoding, PrimeField},
+    vsss_rs::Share,
+    Signature, SignatureShare,
+};
+use multi_base::Base;
+use multi_codec::Codec;
+use multi_trait::{Null, TryDecodeFrom};
+use multi_util::{BaseEncoded, CodecInfo, EncodingInfo, Varbytes, Varuint};
 use std::{collections::BTreeMap, fmt};
 
 /// the list of signature codecs currently supported
-pub const SIG_CODECS: [Codec; 4] = [
+pub const SIG_CODECS: [Codec; 35] = [
     Codec::Bls12381G1Msig,
     Codec::Bls12381G2Msig,
     Codec::EddsaMsig,
-    // Codec::Es256Msig,
-    // Codec::Es384Msig,
-    // Codec::Es521Msig,
-    // Codec::Rs256Msig,
-    Codec::Es256KMsig, //,
-                       //Codec::LamportMsig,
+    Codec::Es256KMsig,
+    Codec::Es256Msig,
+    Codec::Es384Msig,
+    Codec::Es521Msig,
+    Codec::Rs256Msig,
+    Codec::SlhdsaSha2128FMsig,
+    Codec::SlhdsaSha2128SMsig,
+    Codec::SlhdsaSha2192FMsig,
+    Codec::SlhdsaSha2192SMsig,
+    Codec::SlhdsaSha2256FMsig,
+    Codec::SlhdsaSha2256SMsig,
+    Codec::SlhdsaShake128FMsig,
+    Codec::SlhdsaShake128SMsig,
+    Codec::SlhdsaShake192FMsig,
+    Codec::SlhdsaShake192SMsig,
+    Codec::SlhdsaShake256FMsig,
+    Codec::SlhdsaShake256SMsig,
+    Codec::Mldsa65Msig,
+    Codec::Mldsa87Msig,
+    Codec::FnDsa512Msig,
+    Codec::FnDsa1024Msig,
+    Codec::Mayo1Msig,
+    Codec::Mayo2Msig,
+    Codec::Mayo3Msig,
+    Codec::Mayo5Msig,
+    Codec::Ed25519Mayo2Msig,
+    Codec::Ed25519Mldsa65Msig,
+    Codec::Ed25519Fndsa512Msig,
+    Codec::Bls12381G1Mldsa65Msig,
+    Codec::Bls12381G1Fndsa512Msig,
+    Codec::Bls12381G1Mayo1Msig,
+    Codec::Bls12381G1Mayo2Msig,
 ];
 
 /// the list of signature share codecs supported
@@ -44,7 +75,7 @@ pub type EncodedMultisig = BaseEncoded<Multisig>;
 pub type Attributes = BTreeMap<AttrId, Vec<u8>>;
 
 /// The multisig structure
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Multisig {
     /// signature codec
     pub(crate) codec: Codec,
@@ -85,13 +116,13 @@ impl From<Multisig> for Vec<u8> {
         // add in the signature codec
         v.append(&mut val.codec.into());
         // add in the message
-        v.append(&mut Varbytes(val.message.clone()).into());
+        v.append(&mut Varbytes::new(val.message.clone()).into());
         // add in the number of attributes
         v.append(&mut Varuint(val.attributes.len()).into());
         // add in the attributes
         val.attributes.iter().for_each(|(id, attr)| {
             v.append(&mut (*id).into());
-            v.append(&mut Varbytes(attr.clone()).into());
+            v.append(&mut Varbytes::new(attr.clone()).into());
         });
         v
     }
@@ -186,6 +217,36 @@ impl Views for Multisig {
             | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
             Codec::EddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Es256KMsig => Ok(Box::new(secp256k1::View::try_from(self)?)),
+            Codec::Es256Msig | Codec::Es384Msig | Codec::Es521Msig => {
+                Ok(Box::new(nist_p::View::try_from(self)?))
+            }
+            Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
+            Codec::SlhdsaSha2128FMsig
+            | Codec::SlhdsaSha2128SMsig
+            | Codec::SlhdsaSha2192FMsig
+            | Codec::SlhdsaSha2192SMsig
+            | Codec::SlhdsaSha2256FMsig
+            | Codec::SlhdsaSha2256SMsig
+            | Codec::SlhdsaShake128FMsig
+            | Codec::SlhdsaShake128SMsig
+            | Codec::SlhdsaShake192FMsig
+            | Codec::SlhdsaShake192SMsig
+            | Codec::SlhdsaShake256FMsig
+            | Codec::SlhdsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
+            Codec::Mldsa65Msig | Codec::Mldsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
+            Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
+                Ok(Box::new(fn_dsa::View::try_from(self)?))
+            }
+            Codec::Mayo1Msig | Codec::Mayo2Msig | Codec::Mayo3Msig | Codec::Mayo5Msig => {
+                Ok(Box::new(mayo::View::try_from(self)?))
+            }
+            Codec::Ed25519Mayo2Msig => Ok(Box::new(ed25519_mayo2::View::try_from(self)?)),
+            Codec::Ed25519Mldsa65Msig
+            | Codec::Ed25519Fndsa512Msig
+            | Codec::Bls12381G1Mldsa65Msig
+            | Codec::Bls12381G1Fndsa512Msig
+            | Codec::Bls12381G1Mayo1Msig
+            | Codec::Bls12381G1Mayo2Msig => Ok(Box::new(ed25519_hybrid::View::try_from(self)?)),
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -198,6 +259,36 @@ impl Views for Multisig {
             | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
             Codec::EddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Es256KMsig => Ok(Box::new(secp256k1::View::try_from(self)?)),
+            Codec::Es256Msig | Codec::Es384Msig | Codec::Es521Msig => {
+                Ok(Box::new(nist_p::View::try_from(self)?))
+            }
+            Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
+            Codec::SlhdsaSha2128FMsig
+            | Codec::SlhdsaSha2128SMsig
+            | Codec::SlhdsaSha2192FMsig
+            | Codec::SlhdsaSha2192SMsig
+            | Codec::SlhdsaSha2256FMsig
+            | Codec::SlhdsaSha2256SMsig
+            | Codec::SlhdsaShake128FMsig
+            | Codec::SlhdsaShake128SMsig
+            | Codec::SlhdsaShake192FMsig
+            | Codec::SlhdsaShake192SMsig
+            | Codec::SlhdsaShake256FMsig
+            | Codec::SlhdsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
+            Codec::Mldsa65Msig | Codec::Mldsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
+            Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
+                Ok(Box::new(fn_dsa::View::try_from(self)?))
+            }
+            Codec::Mayo1Msig | Codec::Mayo2Msig | Codec::Mayo3Msig | Codec::Mayo5Msig => {
+                Ok(Box::new(mayo::View::try_from(self)?))
+            }
+            Codec::Ed25519Mayo2Msig => Ok(Box::new(ed25519_mayo2::View::try_from(self)?)),
+            Codec::Ed25519Mldsa65Msig
+            | Codec::Ed25519Fndsa512Msig
+            | Codec::Bls12381G1Mldsa65Msig
+            | Codec::Bls12381G1Fndsa512Msig
+            | Codec::Bls12381G1Mayo1Msig
+            | Codec::Bls12381G1Mayo2Msig => Ok(Box::new(ed25519_hybrid::View::try_from(self)?)),
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -210,6 +301,36 @@ impl Views for Multisig {
             | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
             Codec::EddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Es256KMsig => Ok(Box::new(secp256k1::View::try_from(self)?)),
+            Codec::Es256Msig | Codec::Es384Msig | Codec::Es521Msig => {
+                Ok(Box::new(nist_p::View::try_from(self)?))
+            }
+            Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
+            Codec::SlhdsaSha2128FMsig
+            | Codec::SlhdsaSha2128SMsig
+            | Codec::SlhdsaSha2192FMsig
+            | Codec::SlhdsaSha2192SMsig
+            | Codec::SlhdsaSha2256FMsig
+            | Codec::SlhdsaSha2256SMsig
+            | Codec::SlhdsaShake128FMsig
+            | Codec::SlhdsaShake128SMsig
+            | Codec::SlhdsaShake192FMsig
+            | Codec::SlhdsaShake192SMsig
+            | Codec::SlhdsaShake256FMsig
+            | Codec::SlhdsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
+            Codec::Mldsa65Msig | Codec::Mldsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
+            Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
+                Ok(Box::new(fn_dsa::View::try_from(self)?))
+            }
+            Codec::Mayo1Msig | Codec::Mayo2Msig | Codec::Mayo3Msig | Codec::Mayo5Msig => {
+                Ok(Box::new(mayo::View::try_from(self)?))
+            }
+            Codec::Ed25519Mayo2Msig => Ok(Box::new(ed25519_mayo2::View::try_from(self)?)),
+            Codec::Ed25519Mldsa65Msig
+            | Codec::Ed25519Fndsa512Msig
+            | Codec::Bls12381G1Mldsa65Msig
+            | Codec::Bls12381G1Fndsa512Msig
+            | Codec::Bls12381G1Mayo1Msig
+            | Codec::Bls12381G1Mayo2Msig => Ok(Box::new(ed25519_hybrid::View::try_from(self)?)),
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -297,7 +418,7 @@ impl Builder {
                 }
                 bls12381::ALGORITHM_NAME_G1_SHARE => {
                     let sig_share = bls12381::SigShare::try_from(sig.as_bytes())?;
-                    attributes.insert(AttrId::ShareIdentifier, Varuint(sig_share.0).into());
+                    attributes.insert(AttrId::ShareIdentifier, sig_share.0 .0.to_be_bytes().into());
                     attributes.insert(AttrId::Threshold, Varuint(sig_share.1).into());
                     attributes.insert(AttrId::Limit, Varuint(sig_share.2).into());
                     attributes.insert(AttrId::Scheme, sig_share.3.into());
@@ -310,7 +431,7 @@ impl Builder {
                 }
                 bls12381::ALGORITHM_NAME_G2_SHARE => {
                     let sig_share = bls12381::SigShare::try_from(sig.as_bytes())?;
-                    attributes.insert(AttrId::ShareIdentifier, Varuint(sig_share.0).into());
+                    attributes.insert(AttrId::ShareIdentifier, sig_share.0 .0.to_be_bytes().into());
                     attributes.insert(AttrId::Threshold, Varuint(sig_share.1).into());
                     attributes.insert(AttrId::Limit, Varuint(sig_share.2).into());
                     attributes.insert(AttrId::Scheme, sig_share.3.into());
@@ -334,7 +455,6 @@ impl Builder {
     {
         let scheme_type_id = SchemeTypeId::from(sig);
         let sig_bytes: Vec<u8> = sig.as_raw_value().to_bytes().as_ref().to_vec();
-        println!("signature length: {}", sig_bytes.len());
         let codec = match sig_bytes.len() {
             48 => Codec::Bls12381G1Msig, // G1Projective::to_compressed()
             96 => Codec::Bls12381G2Msig, // G2Projective::to_compressed()
@@ -365,9 +485,8 @@ impl Builder {
     {
         let scheme_type_id = SchemeTypeId::from(sigshare);
         let sigshare = sigshare.as_raw_value();
-        let identifier = sigshare.identifier();
-        let value = sigshare.value_vec();
-        println!("sigshare len: {}", value.len());
+        let identifier = sigshare.identifier().0.to_repr().as_ref().to_vec();
+        let value = sigshare.value().0.to_bytes().as_ref().to_vec();
         let codec = match value.len() {
             48 => Codec::Bls12381G1ShareMsig, // large pubkeys, small signatures
             96 => Codec::Bls12381G2ShareMsig, // small pubkeys, large signatures
@@ -381,7 +500,7 @@ impl Builder {
         attributes.insert(AttrId::SigData, value);
         attributes.insert(AttrId::Threshold, Varuint(threshold).into());
         attributes.insert(AttrId::Limit, Varuint(limit).into());
-        attributes.insert(AttrId::ShareIdentifier, Varuint(identifier).into());
+        attributes.insert(AttrId::ShareIdentifier, identifier);
         attributes.insert(AttrId::Scheme, scheme_type_id.into());
         Ok(Self {
             codec,
@@ -436,8 +555,8 @@ impl Builder {
     }
 
     /// add the threshold signature identifier
-    pub fn with_identifier(self, identifier: u8) -> Self {
-        self.with_attribute(AttrId::ShareIdentifier, &Varuint(identifier).into())
+    pub fn with_identifier(self, identifier: &impl AsRef<[u8]>) -> Self {
+        self.with_attribute(AttrId::ShareIdentifier, &identifier.as_ref().to_vec())
     }
 
     /// add the threshold data

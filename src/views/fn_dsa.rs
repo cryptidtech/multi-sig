@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{
-    error::{AttributesError, ConversionsError},
-    AttrId, AttrView, ConvView, DataView, Error, Multisig, Views,
-};
+//! FN-DSA 512/1024 multisig view; FIPS 206 (draft).
+
+use crate::{error::AttributesError, AttrId, AttrView, ConvView, DataView, Error, Multisig};
 use multi_codec::Codec;
 
 pub(crate) struct View<'a> {
@@ -18,26 +17,20 @@ impl<'a> TryFrom<&'a Multisig> for View<'a> {
 }
 
 impl<'a> AttrView for View<'a> {
-    /// for EdDSA Multisigs, the payload encoding is stored using the
-    /// AttrId::PayloadEncoding attribute id.
     fn payload_encoding(&self) -> Result<Codec, Error> {
         let v = self
             .ms
             .attributes
             .get(&AttrId::PayloadEncoding)
             .ok_or(AttributesError::MissingPayloadEncoding)?;
-        let encoding = Codec::try_from(v.as_slice())?;
-        Ok(encoding)
+        Ok(Codec::try_from(v.as_slice())?)
     }
-    /// EdDSA signatures only have one scheme so this is meaningless
     fn scheme(&self) -> Result<u8, Error> {
         Ok(0)
     }
 }
 
 impl<'a> DataView for View<'a> {
-    /// For EdDSA Multisig values, the sig data is stored using the
-    /// AttrId::SigData attribute id.
     fn sig_bytes(&self) -> Result<Vec<u8>, Error> {
         let sig = self
             .ms
@@ -49,14 +42,9 @@ impl<'a> DataView for View<'a> {
 }
 
 impl<'a> ConvView for View<'a> {
-    /// convert to SSH signature format
     fn to_ssh_signature(&self) -> Result<ssh_key::Signature, Error> {
-        // get the signature data
-        let dv = self.ms.data_view()?;
-        let sig_bytes = dv.sig_bytes()?;
-        Ok(
-            ssh_key::Signature::new(ssh_key::Algorithm::Ed25519, sig_bytes)
-                .map_err(|e| ConversionsError::Ssh(e.into()))?,
-        )
+        Err(Error::UnsupportedAlgorithm(
+            "FN-DSA (Falcon) not supported in SSH signature format".into(),
+        ))
     }
 }

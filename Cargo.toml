@@ -1,43 +1,47 @@
 [package]
-name = "multisig"
-version = "1.0.4"
+name = "multi-sig"
+version = "1.0.2"
 edition = "2021"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multisig self-describing multicodec implementation for digital signatures"
-repository = "https://github.com/cryptidtech/multisig.git"
+repository = "https://github.com/cryptidtech/multi-sig.git"
 readme = "README.md"
 license = "Apache-2.0"
+keywords = ["multiformats", "multisig", "signatures", "crypto"]
+categories = ["cryptography", "encoding"]
 
 [features]
 default = ["serde"]
 
 [dependencies]
-blsful = { version = "2.5" }
-elliptic-curve = "0.13"
-multibase = { version = "1.0", git = "https://github.com/cryptidtech/rust-multibase.git" }
-multicodec = { version = "1.0", git = "https://github.com/cryptidtech/rust-multicodec.git" }
-multitrait = { version = "1.0", git = "https://github.com/cryptidtech/multitrait.git" }
-multiutil = { version = "1.0", git = "https://github.com/cryptidtech/multiutil.git" }
-serde = { version = "1.0", default-features = false, features = [
-  "alloc",
-  "derive",
-], optional = true }
-ssh-encoding = { version = "0.2" }
-thiserror = "1.0"
+elliptic-curve = "0.14"
+# blsful configured per-target below (blst for native, rust for wasm)
+multi-base = "1.0"
+multi-codec = "1.0"
+multi-trait = "1.0"
+multi-util = "1.0"
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
+ssh-encoding = "0.3"
+thiserror = { version = "2.0" }
 unsigned-varint = { version = "0.8", features = ["std"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-ssh-key = { version = "0.6", default-features = false, features = [
-  "alloc",
-  "ecdsa",
-  "ed25519",
-] }
+blsful = { version = "4.0.0-rc1", default-features = false, features = ["rust"] }
+ssh-key = { version = "0.7.0-rc.11", default-features = false, features = ["alloc", "ecdsa", "ed25519"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-ssh-key = { version = "0.6", features = ["crypto"] }
+blsful = { version = "4.0.0-rc1", default-features = false, features = ["blst"] }
+ssh-key = { version = "0.7.0-rc.11", features = ["crypto"] }
 
 [dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
 hex = "0.4"
-serde_test = "1.0"
-serde_json = "1.0"
+proptest = "1.4"
 serde_cbor = "0.11"
+serde_json = "1.0"
+serde_test = "1.0"
+
+[[bench]]
+name = "multisig_bench"
+harness = false
+path = "benches/multisig_bench.rs"
