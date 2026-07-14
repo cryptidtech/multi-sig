@@ -71,7 +71,7 @@ pub enum AttributesError {
     #[error("Signature missing threshold")]
     MissingThreshold,
     /// No limit attribute
-    #[error("Signature missing limi")]
+    #[error("Signature missing limit")]
     MissingLimit,
     /// No identifier attribute
     #[error("Signature missing identifier")]
@@ -121,6 +121,26 @@ pub enum SharesError {
     /// Not enough shares to reconstruct the siganture
     #[error("Not enough shares to reconstruct the signature")]
     NotEnoughShares,
+    /// Threshold metadata encryption/decryption error
+    #[error("Threshold metadata error: {0}")]
+    MetaEncryption(String),
+    /// Missing threshold metadata key for decrypting t/n
+    #[error("Missing threshold metadata key")]
+    MissingMetaKey,
+    /// Threshold disclosure mode mismatch between shares
+    #[error("Threshold disclosure mode mismatch: expected {expected}, found {found}")]
+    DisclosureMismatch {
+        /// Expected disclosure mode code
+        expected: u8,
+        /// Found disclosure mode code
+        found: u8,
+    },
+    /// Duplicate share identifier
+    #[error("Duplicate share identifier")]
+    DuplicateShare,
+    /// Invalid or corrupted threshold data
+    #[error("Invalid threshold data: {0}")]
+    InvalidThresholdData(String),
 }
 
 /// Conversion errors

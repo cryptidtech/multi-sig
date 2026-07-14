@@ -23,6 +23,12 @@ pub enum AttrId {
     ShareIdentifier,
     /// codec-specific threshold signature data
     ThresholdData,
+    /// Threshold disclosure mode (varuint u8): 0=Full, 1=Partial, 2=FullConfidentialial.
+    ThresholdDisclosure,
+    /// AEAD-encrypted threshold metadata CBOR blob.
+    EncryptedThresholdMeta,
+    /// CBOR-encoded cipher info (codec + nonce) for decrypting EncryptedThresholdMeta.
+    ThresholdMetaCipher,
 }
 
 impl AttrId {
@@ -41,6 +47,9 @@ impl AttrId {
             Self::Limit => "limit",
             Self::ShareIdentifier => "share-identifier",
             Self::ThresholdData => "threshold-data",
+            Self::ThresholdDisclosure => "threshold-disclosure",
+            Self::EncryptedThresholdMeta => "encrypted-threshold-meta",
+            Self::ThresholdMetaCipher => "threshold-meta-cipher",
         }
     }
 }
@@ -63,6 +72,9 @@ impl TryFrom<u8> for AttrId {
             4 => Ok(Self::Limit),
             5 => Ok(Self::ShareIdentifier),
             6 => Ok(Self::ThresholdData),
+            7 => Ok(Self::ThresholdDisclosure),
+            8 => Ok(Self::EncryptedThresholdMeta),
+            9 => Ok(Self::ThresholdMetaCipher),
             _ => Err(AttributesError::InvalidAttributeValue(c).into()),
         }
     }
@@ -104,6 +116,9 @@ impl TryFrom<&str> for AttrId {
             "limit" => Ok(Self::Limit),
             "share-identifier" => Ok(Self::ShareIdentifier),
             "threshold-data" => Ok(Self::ThresholdData),
+            "threshold-disclosure" => Ok(Self::ThresholdDisclosure),
+            "encrypted-threshold-meta" => Ok(Self::EncryptedThresholdMeta),
+            "threshold-meta-cipher" => Ok(Self::ThresholdMetaCipher),
             _ => Err(AttributesError::InvalidAttributeName(s.to_string()).into()),
         }
     }

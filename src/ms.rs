@@ -4,7 +4,7 @@ use crate::{
     views::{
         bls12381::{self, SchemeTypeId},
         ed25519, ed25519_hybrid, ed25519_mayo2, fn_dsa, mayo, ml_dsa, nist_p, rsa, secp256k1,
-        slh_dsa,
+        slh_dsa, threshold_meta, DisclosureView, ThresholdDisclosureView,
     },
     AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView, Views,
 };
@@ -353,6 +353,11 @@ impl Views for Multisig {
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
+
+    /// Provide an interface for threshold disclosure mode operations
+    fn disclosure_view<'a>(&'a self) -> Result<Box<dyn ThresholdDisclosureView + 'a>, Error> {
+        Ok(Box::new(DisclosureView::new(self)))
+    }
 }
 
 /// Builder for Multisigs
@@ -562,6 +567,31 @@ impl Builder {
     /// add the threshold data
     pub fn with_threshold_data(self, tdata: &impl AsRef<[u8]>) -> Self {
         self.with_attribute(AttrId::ThresholdData, &tdata.as_ref().to_vec())
+    }
+
+    /// Set the disclosure mode for a threshold sig share being built.
+    ///
+    /// In Full mode, t and n are plaintext. In Partial/FullConfidentialial,
+    /// `meta_key` is required.
+    pub fn with_disclosure(
+        self,
+        mode: multi_key::ThresholdDisclosure,
+        meta_key: Option<&multi_key::Multikey>,
+        threshold: usize,
+        limit: usize,
+    ) -> Self {
+        let mut attributes = self.attributes.unwrap_or_default();
+        let _ = threshold_meta::stamp_disclosure_attrs(
+            &mut attributes,
+            mode,
+            threshold,
+            limit,
+            meta_key,
+        );
+        Self {
+            attributes: Some(attributes),
+            ..self
+        }
     }
 
     /// add a signature share
