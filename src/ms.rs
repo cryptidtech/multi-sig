@@ -437,7 +437,7 @@ impl Builder {
                     attributes.insert(AttrId::Scheme, sig_share.3.into());
                     attributes.insert(AttrId::SigData, sig_share.4);
                     Ok(Self {
-                        codec: Codec::Bls12381G1ShareMsig,
+                        codec: Codec::Bls12381G2ShareMsig,
                         attributes: Some(attributes),
                         ..Default::default()
                     })

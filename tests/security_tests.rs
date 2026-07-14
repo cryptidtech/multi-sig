@@ -33,7 +33,7 @@ fn test_malformed_data() {
 /// Test truncated multisig
 #[test]
 fn test_truncated_data() {
-    let truncated = vec![0x39]; // Just sigil
+    let truncated = vec![0xB9, 0x24]; // Multisig sigil 0x1239 as varuint, no payload
     let result = Multisig::try_from(truncated.as_ref());
     assert!(result.is_err());
 }

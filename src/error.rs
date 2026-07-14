@@ -37,7 +37,7 @@ pub enum Error {
     /// Vsss error
     #[error("Vsss share error: {0}")]
     Vsss(String),
-    /// Missing sigil 0x39
+    /// Missing sigil 0x1239
     #[error("Missing Multisig sigil")]
     MissingSigil,
     /// Duplicate attribute error

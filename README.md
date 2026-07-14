@@ -96,7 +96,7 @@ requirements][WHATAREMULTIFORMATS] for all Multicodec data types:
 The design of Varsig relies on out-of-band context to make sense of the 
 signature-specific values (see below).
 
-This new Multisig implementation uses a new multicodec sigil `0x39` instead of 
+This new Multisig implementation uses a new multicodec sigil `0x1239` instead of
 the Varsig `0x34` to distinguish the two formats. 
 
 The good news is that converting from Varsig to Multisig should be straight 
