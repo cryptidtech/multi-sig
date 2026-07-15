@@ -1,6 +1,6 @@
 [package]
 name = "multi-sig"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multisig self-describing multicodec implementation for digital signatures"
@@ -21,7 +21,7 @@ getrandom = { version = "0.2" }
 # blsful configured per-target below (blst for native, rust for wasm)
 multi-base = "1.0"
 multi-codec = "1.0"
-multi-key = { version = "1.0", path = "../multi-key" }
+multi-key = "1.0"
 multi-trait = "1.0"
 multi-util = "1.0"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
