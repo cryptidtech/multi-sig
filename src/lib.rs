@@ -77,7 +77,7 @@ pub use attrid::AttrId;
 
 /// Multisig implementation
 pub mod ms;
-pub use ms::{Builder, EncodedMultisig, Multisig, SIG_CODECS, SIG_SHARE_CODECS};
+pub use ms::{Builder, EncodedMultisig, Multisig, MAX_ATTRIBUTES, SIG_CODECS, SIG_SHARE_CODECS};
 
 /// Type-safe wrappers for signature components
 pub mod types;
@@ -86,8 +86,9 @@ pub use types::{SignatureBytes, SignatureScheme};
 /// Views on the multisig
 pub mod views;
 pub use views::{
-    AttrView, ConvView, DataView, ThresholdAttrView, ThresholdDisclosureView, ThresholdView,
-    Views,
+    decrypt_threshold_meta, encrypt_threshold_meta, generate_meta_key, AttrView, ConvView,
+    DataView, ThresholdAttrView, ThresholdDisclosure, ThresholdDisclosureView, ThresholdMetaCipher,
+    ThresholdMetadata, ThresholdView, Views,
 };
 
 /// Serde serialization

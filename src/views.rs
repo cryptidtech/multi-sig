@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{Error, Multisig};
 use multi_codec::Codec;
-use multi_key::ThresholdDisclosure;
 
 /// BLS12 381 G1/G2 signature implementation
 pub mod bls12381;
@@ -27,7 +26,11 @@ pub mod secp256k1;
 pub mod slh_dsa;
 /// Threshold disclosure modes and encrypted metadata helpers.
 pub mod threshold_meta;
-pub use threshold_meta::{DisclosureView, disclosure_mode, read_threshold_params, stamp_disclosure_attrs};
+pub use threshold_meta::{
+    decrypt_threshold_meta, disclosure_mode, encrypt_threshold_meta, generate_meta_key,
+    read_threshold_params, stamp_disclosure_attrs, DisclosureView, ThresholdDisclosure,
+    ThresholdMetaCipher, ThresholdMetadata,
+};
 
 ///
 /// Attributes views let you inquire about the Multisig and retrieve data
@@ -73,7 +76,7 @@ pub trait ThresholdView {
     fn shares_with_disclosure(
         &self,
         mode: ThresholdDisclosure,
-        meta_key: Option<&multi_key::Multikey>,
+        meta_key: Option<&[u8]>,
     ) -> Result<Vec<Multisig>, Error>;
     /// add a new share and return the Multisig with the share added
     fn add_share(&self, share: &Multisig) -> Result<Multisig, Error>;
@@ -81,15 +84,12 @@ pub trait ThresholdView {
     fn add_share_with_meta(
         &self,
         share: &Multisig,
-        meta_key: Option<&multi_key::Multikey>,
+        meta_key: Option<&[u8]>,
     ) -> Result<Multisig, Error>;
     /// reconstruct the signature from the shares
     fn combine(&self) -> Result<Multisig, Error>;
     /// combine with a meta_key for decrypting threshold params
-    fn combine_with_meta(
-        &self,
-        meta_key: Option<&multi_key::Multikey>,
-    ) -> Result<Multisig, Error>;
+    fn combine_with_meta(&self, meta_key: Option<&[u8]>) -> Result<Multisig, Error>;
 }
 
 /// trait for threshold disclosure mode operations on a Multisig
@@ -97,16 +97,16 @@ pub trait ThresholdDisclosureView {
     /// Get the current disclosure mode. Returns Full if no mode attribute is present.
     fn disclosure_mode(&self) -> Result<ThresholdDisclosure, Error>;
     /// Read t and n, decrypting if necessary. Requires `meta_key` for encrypted modes.
-    fn read_threshold_params(
-        &self,
-        meta_key: Option<&multi_key::Multikey>,
-    ) -> Result<(usize, usize), Error>;
+    ///
+    /// `meta_key` is the raw 32-byte symmetric key (callers extract it from a
+    /// `multi_key::Multikey` before calling).
+    fn read_threshold_params(&self, meta_key: Option<&[u8]>) -> Result<(usize, usize), Error>;
     /// Convert to a target disclosure mode.
     fn to_disclosure(
         &self,
         target: ThresholdDisclosure,
-        meta_key: Option<&multi_key::Multikey>,
-        current_meta_key: Option<&multi_key::Multikey>,
+        meta_key: Option<&[u8]>,
+        current_meta_key: Option<&[u8]>,
     ) -> Result<Multisig, Error>;
 }
 

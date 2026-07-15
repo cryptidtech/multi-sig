@@ -43,6 +43,14 @@ pub enum Error {
     /// Duplicate attribute error
     #[error("Duplicate Multikey attribute: {0}")]
     DuplicateAttribute(u8),
+    /// Attribute count exceeds the configured maximum
+    ///
+    /// Returned by [`crate::ms::Multisig::try_decode_from`] when the number of
+    /// attributes declared in the wire data exceeds
+    /// [`crate::ms::MAX_ATTRIBUTES`]. Bounds the work a crafted input can
+    /// force the decoder to perform and mitigates CWE-400.
+    #[error("attribute count {0} exceeds maximum {1}")]
+    TooManyAttributes(usize, usize),
     /// Failed Varsig conversion
     #[error("Failed Varsig conversion: {0}")]
     FailedConversion(String),
@@ -200,6 +208,7 @@ impl Error {
             Self::Vsss(_) => "Vsss",
             Self::MissingSigil => "MissingSigil",
             Self::DuplicateAttribute(_) => "DuplicateAttribute",
+            Self::TooManyAttributes(_, _) => "TooManyAttributes",
             Self::FailedConversion(_) => "FailedConversion",
             Self::UnsupportedAlgorithm(_) => "UnsupportedAlgorithm",
         }

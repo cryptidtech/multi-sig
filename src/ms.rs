@@ -4,7 +4,7 @@ use crate::{
     views::{
         bls12381::{self, SchemeTypeId},
         ed25519, ed25519_hybrid, ed25519_mayo2, fn_dsa, mayo, ml_dsa, nist_p, rsa, secp256k1,
-        slh_dsa, threshold_meta, DisclosureView, ThresholdDisclosureView,
+        slh_dsa, threshold_meta, DisclosureView, ThresholdDisclosure, ThresholdDisclosureView,
     },
     AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView, Views,
 };
@@ -67,6 +67,14 @@ pub const SIG_SHARE_CODECS: [Codec; 2] = [
 
 /// the multisig sigil
 pub const SIGIL: Codec = Codec::Multisig;
+
+/// Maximum number of attributes a single decoded [`Multisig`] will accept.
+///
+/// Every legitimate multisig carries at most a handful of attributes (signature
+/// data, threshold metadata, payload encoding, …). The 256 ceiling comfortably
+/// covers every codec this crate emits while bounding the work a crafted input
+/// can force the decoder to perform (mitigates CWE-400).
+pub const MAX_ATTRIBUTES: usize = 256;
 
 /// a base encoded varsig
 pub type EncodedMultisig = BaseEncoded<Multisig>;
@@ -153,6 +161,11 @@ impl<'a> TryDecodeFrom<'a> for Multisig {
         let message = message.to_inner();
         // decode the number of signature-specific attributes
         let (num_attr, ptr) = Varuint::<usize>::try_decode_from(ptr)?;
+        // reject attribute counts that exceed the configured maximum to bound
+        // the work a crafted input can force the decoder to perform (CWE-400)
+        if *num_attr > MAX_ATTRIBUTES {
+            return Err(Error::TooManyAttributes(*num_attr, MAX_ATTRIBUTES));
+        }
         // decode the signature-specific attributes
         let (attributes, ptr) = match *num_attr {
             0 => (Attributes::default(), ptr),
@@ -460,6 +473,16 @@ impl Builder {
     {
         let scheme_type_id = SchemeTypeId::from(sig);
         let sig_bytes: Vec<u8> = sig.as_raw_value().to_bytes().as_ref().to_vec();
+        // # Known limitation (length-based codec inference)
+        //
+        // The BLS12-381 codec (`Bls12381G1Msig` vs `Bls12381G2Msig`) is selected
+        // from the compressed-point byte length: 48 bytes -> G1, 96 bytes -> G2.
+        // This is a heuristic rather than cryptographic binding — a 48-byte G2
+        // signature or a 96-byte G1 signature (both invalid for BLS12-381 but
+        // constructable by an attacker controlling the input) would be
+        // misclassified. Downstream code that trusts this codec tag for curve
+        // selection must re-validate the signature against the intended curve
+        // rather than relying on the codec alone.
         let codec = match sig_bytes.len() {
             48 => Codec::Bls12381G1Msig, // G1Projective::to_compressed()
             96 => Codec::Bls12381G2Msig, // G2Projective::to_compressed()
@@ -492,6 +515,14 @@ impl Builder {
         let sigshare = sigshare.as_raw_value();
         let identifier = sigshare.identifier().0.to_repr().as_ref().to_vec();
         let value = sigshare.value().0.to_bytes().as_ref().to_vec();
+        // # Known limitation (length-based codec inference)
+        //
+        // The share codec (`Bls12381G1ShareMsig` vs `Bls12381G2ShareMsig`) is
+        // selected from the compressed-point byte length: 48 bytes -> G1,
+        // 96 bytes -> G2. As with [`Self::new_from_bls_signature`], this is a
+        // heuristic, not cryptographic binding; downstream consumers must
+        // re-validate against the intended curve rather than trusting the
+        // codec tag alone.
         let codec = match value.len() {
             48 => Codec::Bls12381G1ShareMsig, // large pubkeys, small signatures
             96 => Codec::Bls12381G2ShareMsig, // small pubkeys, large signatures
@@ -575,8 +606,8 @@ impl Builder {
     /// `meta_key` is required.
     pub fn with_disclosure(
         self,
-        mode: multi_key::ThresholdDisclosure,
-        meta_key: Option<&multi_key::Multikey>,
+        mode: ThresholdDisclosure,
+        meta_key: Option<&[u8]>,
         threshold: usize,
         limit: usize,
     ) -> Self {
@@ -713,6 +744,7 @@ mod tests {
 
         let ms1 = Builder::new_from_bls_signature(&sig)
             .unwrap()
+            .with_payload_encoding(Codec::Raw)
             .try_build()
             .unwrap();
 
@@ -729,13 +761,14 @@ mod tests {
             sigs.push(
                 Builder::new_from_bls_signature_share(3, 4, &sig)
                     .unwrap()
+                    .with_payload_encoding(Codec::Raw)
                     .try_build()
                     .unwrap(),
             );
         });
 
         // build a new signature from the parts
-        let mut builder = Builder::new(Codec::Bls12381G2Msig);
+        let mut builder = Builder::new(Codec::Bls12381G2Msig).with_payload_encoding(Codec::Raw);
         for sig in &sigs {
             builder = builder.add_signature_share(sig);
         }
@@ -819,6 +852,7 @@ mod tests {
 
         let ms1 = Builder::new_from_bls_signature(&sig)
             .unwrap()
+            .with_payload_encoding(Codec::Raw)
             .try_build()
             .unwrap();
 
@@ -843,7 +877,7 @@ mod tests {
         });
 
         // build a new signature from the parts
-        let mut builder = Builder::new(Codec::Bls12381G2Msig);
+        let mut builder = Builder::new(Codec::Bls12381G2Msig).with_payload_encoding(Codec::Raw);
         for sig in &sigs {
             let ms = Builder::new_from_ssh_signature(sig)
                 .unwrap()
