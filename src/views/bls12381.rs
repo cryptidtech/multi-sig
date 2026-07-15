@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     error::{AttributesError, ConversionsError, SharesError},
-    views::threshold_meta,
+    views::threshold_meta::{self, ThresholdDisclosure},
     AttrId, AttrView, Builder, ConvView, DataView, Error, Multisig, ThresholdAttrView,
     ThresholdView, Views,
 };
-use multi_key::ThresholdDisclosure;
 use blsful::{
     inner_types::{G1Projective, G2Projective, Scalar},
     vsss_rs::{IdentifierPrimeField, Share, ValueGroup},
@@ -313,7 +312,9 @@ impl<'a> TryDecodeFrom<'a> for ThresholdData {
                 let mut p = ptr;
                 for _ in 0..*num_shares {
                     let (share, ptr) = SigShare::try_decode_from(p)?;
-                    shares.insert(share.0, share);
+                    if shares.insert(share.0, share).is_some() {
+                        return Err(SharesError::DuplicateShare.into());
+                    }
                     p = ptr;
                 }
                 (shares, p)
@@ -553,7 +554,8 @@ impl<'a> ThresholdView for View<'a> {
         let threshold_data = {
             let av = self.ms.threshold_attr_view()?;
             match av.threshold_data() {
-                Ok(b) => ThresholdData::try_from(b).unwrap_or_default(),
+                Ok(b) => ThresholdData::try_from(b)
+                    .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
                 Err(_) => ThresholdData::default(),
             }
         };
@@ -644,9 +646,14 @@ impl<'a> ThresholdView for View<'a> {
         let threshold_data: Vec<u8> = {
             let av = self.ms.threshold_attr_view()?;
             let mut tdata = match av.threshold_data() {
-                Ok(b) => ThresholdData::try_from(b).unwrap_or_default(),
+                Ok(b) => ThresholdData::try_from(b)
+                    .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
                 Err(_) => ThresholdData::default(),
             };
+            // detect a duplicate share identifier and refuse to silently overwrite it
+            if tdata.0.contains_key(&identifier) {
+                return Err(SharesError::DuplicateShare.into());
+            }
             // insert the share data into the list of shares
             tdata.0.insert(identifier, sdata);
             tdata.into()
@@ -687,7 +694,8 @@ impl<'a> ThresholdView for View<'a> {
         let threshold_data = {
             let av = self.ms.threshold_attr_view()?;
             match av.threshold_data() {
-                Ok(b) => ThresholdData::try_from(b).unwrap_or_default(),
+                Ok(b) => ThresholdData::try_from(b)
+                    .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
                 Err(_) => ThresholdData::default(),
             }
         };
@@ -785,16 +793,12 @@ impl<'a> ThresholdView for View<'a> {
                     .map_err(|e| SharesError::ShareCombineFailed(e.to_string()))?;
                 let encoding = {
                     let av = self.ms.attr_view()?;
-                    av.payload_encoding().ok()
+                    av.payload_encoding()?
                 };
-                let builder = Builder::new_from_bls_signature(&sig)?
-                    .with_message_bytes(&self.ms.message.as_slice());
-
-                if let Some(encoding) = encoding {
-                    builder.with_payload_encoding(encoding).try_build()
-                } else {
-                    builder.try_build()
-                }
+                Builder::new_from_bls_signature(&sig)?
+                    .with_message_bytes(&self.ms.message.as_slice())
+                    .with_payload_encoding(encoding)
+                    .try_build()
             }
             _ => Err(Error::UnsupportedAlgorithm(self.ms.codec.to_string())),
         }
@@ -804,15 +808,12 @@ impl<'a> ThresholdView for View<'a> {
     fn shares_with_disclosure(
         &self,
         mode: ThresholdDisclosure,
-        meta_key: Option<&multi_key::Multikey>,
+        meta_key: Option<&[u8]>,
     ) -> Result<Vec<Multisig>, Error> {
         let shares = self.shares()?;
         shares
             .iter()
-            .map(|s| {
-                s.disclosure_view()?
-                    .to_disclosure(mode, meta_key, None)
-            })
+            .map(|s| s.disclosure_view()?.to_disclosure(mode, meta_key, None))
             .collect()
     }
 
@@ -820,10 +821,9 @@ impl<'a> ThresholdView for View<'a> {
     fn add_share_with_meta(
         &self,
         share: &Multisig,
-        meta_key: Option<&multi_key::Multikey>,
+        meta_key: Option<&[u8]>,
     ) -> Result<Multisig, Error> {
-        let (share_t, share_n) =
-            threshold_meta::read_threshold_params(share, meta_key)?;
+        let (share_t, share_n) = threshold_meta::read_threshold_params(share, meta_key)?;
 
         let (sdata, identifier, encoding) = {
             let av = share.attr_view()?;
@@ -891,12 +891,8 @@ impl<'a> ThresholdView for View<'a> {
     }
 
     /// Combine with a meta_key for decrypting threshold params.
-    fn combine_with_meta(
-        &self,
-        meta_key: Option<&multi_key::Multikey>,
-    ) -> Result<Multisig, Error> {
-        let (threshold, _limit) =
-            threshold_meta::read_threshold_params(self.ms, meta_key)?;
+    fn combine_with_meta(&self, meta_key: Option<&[u8]>) -> Result<Multisig, Error> {
+        let (threshold, _limit) = threshold_meta::read_threshold_params(self.ms, meta_key)?;
 
         let threshold_data = {
             let av = self.ms.threshold_attr_view()?;
