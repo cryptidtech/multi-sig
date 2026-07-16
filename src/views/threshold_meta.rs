@@ -232,7 +232,7 @@ pub fn encrypt_threshold_meta(
     let plaintext = meta.to_cbor_bytes()?;
 
     let mut nonce_bytes = vec![0u8; 12];
-    getrandom::getrandom(&mut nonce_bytes).map_err(|e| {
+    getrandom::fill(&mut nonce_bytes).map_err(|e| {
         Error::Shares(crate::error::SharesError::MetaEncryption(format!(
             "RNG failure: {e}"
         )))
@@ -309,7 +309,7 @@ pub fn decrypt_threshold_meta(
 /// Generate a random 32-byte ChaCha20-Poly1305 key.
 pub fn generate_meta_key() -> Zeroizing<Vec<u8>> {
     let mut key = Zeroizing::new(vec![0u8; 32]);
-    getrandom::getrandom(key.as_mut_slice()).expect("getrandom failure during meta key generation");
+    getrandom::fill(key.as_mut_slice()).expect("getrandom failure during meta key generation");
     key
 }
 
