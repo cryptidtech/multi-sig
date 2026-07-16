@@ -61,6 +61,7 @@
 
 #![warn(missing_docs)]
 #![deny(
+    unsafe_code,
     trivial_casts,
     trivial_numeric_casts,
     unused_import_braces,

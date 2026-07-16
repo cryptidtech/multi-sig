@@ -1,6 +1,6 @@
 [package]
 name = "multi-sig"
-version = "1.0.5"
+version = "1.0.6"
 edition = "2021"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multisig self-describing multicodec implementation for digital signatures"
@@ -12,18 +12,23 @@ categories = ["cryptography", "encoding"]
 
 [features]
 default = ["serde"]
+# `serde` is now a required dependency because the core `threshold_meta`
+# module (always compiled) derives `Serialize`/`Deserialize` for its CBOR
+# blob types. The feature flag is retained for backward compatibility and
+# controls only the public `serde` impl module.
+serde = []
 
 [dependencies]
 ciborium = "0.2"
-chacha20poly1305 = "0.10"
+chacha20poly1305 = "0.11"
 elliptic-curve = "0.14"
-getrandom = { version = "0.2" }
+getrandom = { version = "0.4" }
 # blsful configured per-target below (blst for native, rust for wasm)
 multi-base = "1.0"
 multi-codec = "1.0"
 multi-trait = "1.0"
 multi-util = "1.0"
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 ssh-encoding = "0.3"
 thiserror = { version = "2.0" }
 unsigned-varint = { version = "0.8", features = ["std"] }
