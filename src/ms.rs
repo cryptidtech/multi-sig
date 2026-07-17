@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
+    AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView, Views,
     error::AttributesError,
     views::{
+        DisclosureView, ThresholdDisclosure, ThresholdDisclosureView,
         bls12381::{self, SchemeTypeId},
         ed25519, ed25519_hybrid, ed25519_mayo2, fn_dsa, mayo, ml_dsa, nist_p, rsa, secp256k1,
-        slh_dsa, threshold_meta, DisclosureView, ThresholdDisclosure, ThresholdDisclosureView,
+        slh_dsa, threshold_meta,
     },
-    AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView, Views,
 };
 use blsful::{
+    Signature, SignatureShare,
     inner_types::{GroupEncoding, PrimeField},
     vsss_rs::Share,
-    Signature, SignatureShare,
 };
 use multi_base::Base;
 use multi_codec::Codec;
@@ -75,6 +76,16 @@ pub const SIGIL: Codec = Codec::Multisig;
 /// covers every codec this crate emits while bounding the work a crafted input
 /// can force the decoder to perform (mitigates CWE-400).
 pub const MAX_ATTRIBUTES: usize = 256;
+
+/// Maximum total decoded size (in bytes) a single [`Multisig`] will accept
+/// when decoding from untrusted wire data.
+///
+/// The 16 MiB ceiling comfortably exceeds every legitimate multisig payload in
+/// this stack while bounding the worst-case allocation an attacker can trigger
+/// with a crafted length prefix. Each `Varbytes` attribute payload is also
+/// individually capped by [`multi_util::varbytes::MAX_DECODED_SIZE`] via the
+/// `Varbytes::try_decode_from` path. Mitigates CWE-400.
+pub const MAX_DECODED_SIZE: usize = 16 * 1024 * 1024;
 
 /// a base encoded varsig
 pub type EncodedMultisig = BaseEncoded<Multisig>;
@@ -149,6 +160,9 @@ impl<'a> TryDecodeFrom<'a> for Multisig {
     type Error = Error;
 
     fn try_decode_from(bytes: &'a [u8]) -> Result<(Self, &'a [u8]), Self::Error> {
+        // Track total consumed bytes to enforce MAX_DECODED_SIZE (CWE-400).
+        let start_len = bytes.len();
+
         // decode the sigil
         let (sigil, ptr) = Codec::try_decode_from(bytes)?;
         if sigil != SIGIL {
@@ -175,8 +189,19 @@ impl<'a> TryDecodeFrom<'a> for Multisig {
                 for _ in 0..*num_attr {
                     let (id, ptr) = AttrId::try_decode_from(p)?;
                     let (attr, ptr) = Varbytes::try_decode_from(ptr)?;
+                    // Per-attribute size is already capped by Varbytes'
+                    // MAX_DECODED_SIZE (16 MiB). The total decoded-size cap
+                    // below provides a second layer of protection.
                     if attributes.insert(id, (*attr).clone()).is_some() {
                         return Err(Error::DuplicateAttribute(id.code()));
+                    }
+                    // Enforce total decoded size cap
+                    let consumed = start_len - ptr.len();
+                    if consumed > MAX_DECODED_SIZE {
+                        return Err(Error::InputTooLarge {
+                            claimed: consumed,
+                            max: MAX_DECODED_SIZE,
+                        });
                     }
                     p = ptr;
                 }
@@ -436,7 +461,7 @@ impl Builder {
                 }
                 bls12381::ALGORITHM_NAME_G1_SHARE => {
                     let sig_share = bls12381::SigShare::try_from(sig.as_bytes())?;
-                    attributes.insert(AttrId::ShareIdentifier, sig_share.0 .0.to_be_bytes().into());
+                    attributes.insert(AttrId::ShareIdentifier, sig_share.0.0.to_be_bytes().into());
                     attributes.insert(AttrId::Threshold, Varuint(sig_share.1).into());
                     attributes.insert(AttrId::Limit, Varuint(sig_share.2).into());
                     attributes.insert(AttrId::Scheme, sig_share.3.into());
@@ -449,7 +474,7 @@ impl Builder {
                 }
                 bls12381::ALGORITHM_NAME_G2_SHARE => {
                     let sig_share = bls12381::SigShare::try_from(sig.as_bytes())?;
-                    attributes.insert(AttrId::ShareIdentifier, sig_share.0 .0.to_be_bytes().into());
+                    attributes.insert(AttrId::ShareIdentifier, sig_share.0.0.to_be_bytes().into());
                     attributes.insert(AttrId::Threshold, Varuint(sig_share.1).into());
                     attributes.insert(AttrId::Limit, Varuint(sig_share.2).into());
                     attributes.insert(AttrId::Scheme, sig_share.3.into());
@@ -467,29 +492,37 @@ impl Builder {
     }
 
     /// create a new builder from a Bls Signature
+    ///
+    /// # Known limitation (length-based codec inference)
+    ///
+    /// The BLS12-381 codec (`Bls12381G1Msig` vs `Bls12381G2Msig`) is selected
+    /// from the compressed-point byte length: 48 bytes -> G1, 96 bytes -> G2.
+    /// This is a heuristic rather than cryptographic binding — a 48-byte G2
+    /// signature or a 96-byte G1 signature (both invalid for BLS12-381 but
+    /// constructable by an attacker controlling the input) would be
+    /// misclassified. Downstream code that trusts this codec tag for curve
+    /// selection must re-validate the signature against the intended curve
+    /// rather than relying on the codec alone.
+    ///
+    /// Prefer [`Self::new_from_bls_signature_with_codec`] when the curve is
+    /// known at the call site.
+    #[deprecated(
+        since = "1.0.7",
+        note = "length-based codec inference is ambiguous; use new_from_bls_signature_with_codec"
+    )]
     pub fn new_from_bls_signature<C>(sig: &Signature<C>) -> Result<Self, Error>
     where
         C: blsful::BlsSignatureImpl,
     {
         let scheme_type_id = SchemeTypeId::from(sig);
         let sig_bytes: Vec<u8> = sig.as_raw_value().to_bytes().as_ref().to_vec();
-        // # Known limitation (length-based codec inference)
-        //
-        // The BLS12-381 codec (`Bls12381G1Msig` vs `Bls12381G2Msig`) is selected
-        // from the compressed-point byte length: 48 bytes -> G1, 96 bytes -> G2.
-        // This is a heuristic rather than cryptographic binding — a 48-byte G2
-        // signature or a 96-byte G1 signature (both invalid for BLS12-381 but
-        // constructable by an attacker controlling the input) would be
-        // misclassified. Downstream code that trusts this codec tag for curve
-        // selection must re-validate the signature against the intended curve
-        // rather than relying on the codec alone.
         let codec = match sig_bytes.len() {
             48 => Codec::Bls12381G1Msig, // G1Projective::to_compressed()
             96 => Codec::Bls12381G2Msig, // G2Projective::to_compressed()
             _ => {
                 return Err(Error::UnsupportedAlgorithm(
                     "invalid Bls signature size".to_string(),
-                ))
+                ));
             }
         };
         let mut attributes = BTreeMap::new();
@@ -502,7 +535,62 @@ impl Builder {
         })
     }
 
+    /// Create a new builder from a BLS signature with an explicit codec.
+    ///
+    /// This constructor avoids the length-based codec inference heuristic
+    /// used by [`Self::new_from_bls_signature`] by requiring the caller to
+    /// specify the BLS12-381 codec (`Bls12381G1Msig` or `Bls12381G2Msig`)
+    /// directly. Prefer this constructor when the curve is known at the call
+    /// site.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedAlgorithm`] if `codec` is not a BLS12-381
+    /// signature codec.
+    pub fn new_from_bls_signature_with_codec<C>(
+        codec: Codec,
+        sig: &Signature<C>,
+    ) -> Result<Self, Error>
+    where
+        C: blsful::BlsSignatureImpl,
+    {
+        match codec {
+            Codec::Bls12381G1Msig | Codec::Bls12381G2Msig => {}
+            _ => {
+                return Err(Error::UnsupportedAlgorithm(format!(
+                    "{codec:?} is not a BLS12-381 signature codec"
+                )));
+            }
+        }
+        let scheme_type_id = SchemeTypeId::from(sig);
+        let sig_bytes: Vec<u8> = sig.as_raw_value().to_bytes().as_ref().to_vec();
+        let mut attributes = BTreeMap::new();
+        attributes.insert(AttrId::SigData, sig_bytes);
+        attributes.insert(AttrId::Scheme, scheme_type_id.into());
+        Ok(Self {
+            codec,
+            attributes: Some(attributes),
+            ..Default::default()
+        })
+    }
+
     /// create a new builder from a Bls SignatureShare
+    ///
+    /// # Known limitation (length-based codec inference)
+    ///
+    /// The share codec (`Bls12381G1ShareMsig` vs `Bls12381G2ShareMsig`) is
+    /// selected from the compressed-point byte length: 48 bytes -> G1,
+    /// 96 bytes -> G2. As with [`Self::new_from_bls_signature`], this is a
+    /// heuristic, not cryptographic binding; downstream consumers must
+    /// re-validate against the intended curve rather than trusting the
+    /// codec tag alone.
+    ///
+    /// Prefer [`Self::new_from_bls_signature_share_with_codec`] when the
+    /// curve is known at the call site.
+    #[deprecated(
+        since = "1.0.7",
+        note = "length-based codec inference is ambiguous; use new_from_bls_signature_share_with_codec"
+    )]
     pub fn new_from_bls_signature_share<C>(
         threshold: usize,
         limit: usize,
@@ -515,23 +603,60 @@ impl Builder {
         let sigshare = sigshare.as_raw_value();
         let identifier = sigshare.identifier().0.to_repr().as_ref().to_vec();
         let value = sigshare.value().0.to_bytes().as_ref().to_vec();
-        // # Known limitation (length-based codec inference)
-        //
-        // The share codec (`Bls12381G1ShareMsig` vs `Bls12381G2ShareMsig`) is
-        // selected from the compressed-point byte length: 48 bytes -> G1,
-        // 96 bytes -> G2. As with [`Self::new_from_bls_signature`], this is a
-        // heuristic, not cryptographic binding; downstream consumers must
-        // re-validate against the intended curve rather than trusting the
-        // codec tag alone.
         let codec = match value.len() {
             48 => Codec::Bls12381G1ShareMsig, // large pubkeys, small signatures
             96 => Codec::Bls12381G2ShareMsig, // small pubkeys, large signatures
             _ => {
                 return Err(Error::UnsupportedAlgorithm(
                     "invalid Bls signature size".to_string(),
-                ))
+                ));
             }
         };
+        let mut attributes = BTreeMap::new();
+        attributes.insert(AttrId::SigData, value);
+        attributes.insert(AttrId::Threshold, Varuint(threshold).into());
+        attributes.insert(AttrId::Limit, Varuint(limit).into());
+        attributes.insert(AttrId::ShareIdentifier, identifier);
+        attributes.insert(AttrId::Scheme, scheme_type_id.into());
+        Ok(Self {
+            codec,
+            attributes: Some(attributes),
+            ..Default::default()
+        })
+    }
+
+    /// Create a new builder from a BLS signature share with an explicit codec.
+    ///
+    /// This constructor avoids the length-based codec inference heuristic
+    /// used by [`Self::new_from_bls_signature_share`] by requiring the caller
+    /// to specify the BLS12-381 share codec
+    /// (`Bls12381G1ShareMsig` or `Bls12381G2ShareMsig`) directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedAlgorithm`] if `codec` is not a BLS12-381
+    /// signature share codec.
+    pub fn new_from_bls_signature_share_with_codec<C>(
+        codec: Codec,
+        threshold: usize,
+        limit: usize,
+        sigshare: &SignatureShare<C>,
+    ) -> Result<Self, Error>
+    where
+        C: blsful::BlsSignatureImpl,
+    {
+        match codec {
+            Codec::Bls12381G1ShareMsig | Codec::Bls12381G2ShareMsig => {}
+            _ => {
+                return Err(Error::UnsupportedAlgorithm(format!(
+                    "{codec:?} is not a BLS12-381 signature share codec"
+                )));
+            }
+        }
+        let scheme_type_id = SchemeTypeId::from(sigshare);
+        let sigshare = sigshare.as_raw_value();
+        let identifier = sigshare.identifier().0.to_repr().as_ref().to_vec();
+        let value = sigshare.value().0.to_bytes().as_ref().to_vec();
         let mut attributes = BTreeMap::new();
         attributes.insert(AttrId::SigData, value);
         attributes.insert(AttrId::Threshold, Varuint(threshold).into());
@@ -714,6 +839,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_bls_signature() {
         let sk = blsful::Bls12381G2::new_secret_key();
         let sig = sk
@@ -733,6 +859,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_bls_signature_combine() {
         let sk = blsful::Bls12381G2::new_secret_key();
         let sig = sk
@@ -815,6 +942,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_bls_signature_ssh_roundtrip() {
         let sk = blsful::Bls12381G1::new_secret_key();
         let sig = sk
@@ -841,6 +969,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_bls_signature_combine_ssh_roundtrip() {
         let sk = blsful::Bls12381G2::new_secret_key();
         let sig = sk
@@ -904,5 +1033,42 @@ mod tests {
         let ms2 = Multisig::default();
         assert_eq!(ms1, ms2);
         assert!(ms2.is_null());
+    }
+
+    #[test]
+    fn test_too_many_attributes_rejected() {
+        use multi_trait::EncodeInto;
+        // Craft a multisig that claims more than MAX_ATTRIBUTES attributes.
+        // It should be rejected with TooManyAttributes, not panic.
+        let mut bad = Vec::new();
+        let sigil_bytes: Vec<u8> = Codec::Multisig.into();
+        bad.extend(sigil_bytes); // sigil
+        let codec_bytes: Vec<u8> = Codec::EddsaMsig.into();
+        bad.extend(codec_bytes); // codec
+        let msg = Varbytes::new(Vec::new());
+        bad.extend(msg.encode_into()); // empty message
+        bad.extend(Varuint(MAX_ATTRIBUTES + 1).encode_into()); // too many attrs
+
+        let result = Multisig::try_from(bad.as_slice());
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            Error::TooManyAttributes(n, max) => {
+                assert_eq!(n, MAX_ATTRIBUTES + 1);
+                assert_eq!(max, MAX_ATTRIBUTES);
+            }
+            e => panic!("Expected TooManyAttributes, got: {e:?}"),
+        }
+    }
+
+    #[test]
+    fn test_valid_roundtrip_with_caps() {
+        // Sanity: a well-formed multisig still round-trips with the caps in place.
+        let ms = Builder::new(Codec::EddsaMsig)
+            .with_signature_bytes(&[0u8; 64])
+            .try_build()
+            .unwrap();
+        let v: Vec<u8> = ms.clone().into();
+        let ms2 = Multisig::try_from(v.as_slice()).unwrap();
+        assert_eq!(ms, ms2);
     }
 }

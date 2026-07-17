@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    error::{AttributesError, ConversionsError},
     AttrId, AttrView, ConvView, DataView, Error, Multisig, Views,
+    error::{AttributesError, ConversionsError},
 };
 use multi_codec::Codec;
 

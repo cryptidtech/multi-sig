@@ -44,12 +44,31 @@ pub enum Error {
     DuplicateAttribute(u8),
     /// Attribute count exceeds the configured maximum
     ///
-    /// Returned by [`crate::ms::Multisig::try_decode_from`] when the number of
+    /// Returned by `Multisig::try_decode_from` when the number of
     /// attributes declared in the wire data exceeds
     /// [`crate::ms::MAX_ATTRIBUTES`]. Bounds the work a crafted input can
     /// force the decoder to perform and mitigates CWE-400.
     #[error("attribute count {0} exceeds maximum {1}")]
     TooManyAttributes(usize, usize),
+    /// Decoded size exceeds the configured maximum
+    ///
+    /// Returned by `Multisig::try_decode_from` when the total
+    /// decoded byte count exceeds [`crate::ms::MAX_DECODED_SIZE`]. Bounds the
+    /// worst-case allocation for untrusted wire data and mitigates CWE-400
+    /// (Uncontrolled Resource Consumption).
+    #[error("decoded size {claimed} exceeds maximum {max}")]
+    InputTooLarge {
+        /// The number of bytes claimed by the wire data
+        claimed: usize,
+        /// The configured maximum decoded size
+        max: usize,
+    },
+    /// Participant count exceeds the configured maximum
+    ///
+    /// Returned when a threshold or limit value decoded from a BLS share
+    /// exceeds [`crate::views::threshold_meta::MAX_THRESHOLD_PARTICIPANTS`].
+    #[error("participant count {0} exceeds maximum {1}")]
+    TooManyParticipants(usize, usize),
     /// Failed Varsig conversion
     #[error("Failed Varsig conversion: {0}")]
     FailedConversion(String),
@@ -189,6 +208,8 @@ impl Error {
             Self::MissingSigil => "MissingSigil",
             Self::DuplicateAttribute(_) => "DuplicateAttribute",
             Self::TooManyAttributes(_, _) => "TooManyAttributes",
+            Self::InputTooLarge { .. } => "InputTooLarge",
+            Self::TooManyParticipants(_, _) => "TooManyParticipants",
             Self::FailedConversion(_) => "FailedConversion",
             Self::UnsupportedAlgorithm(_) => "UnsupportedAlgorithm",
         }

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    error::{AttributesError, ConversionsError, SharesError},
-    views::threshold_meta::{self, ThresholdDisclosure},
     AttrId, AttrView, Builder, ConvView, DataView, Error, Multisig, ThresholdAttrView,
     ThresholdView, Views,
+    error::{AttributesError, ConversionsError, SharesError},
+    views::threshold_meta::{self, ThresholdDisclosure},
 };
 use blsful::{
+    Bls12381G1Impl, Bls12381G2Impl, Signature, SignatureSchemes, SignatureShare,
     inner_types::{G1Projective, G2Projective, Scalar},
     vsss_rs::{IdentifierPrimeField, Share, ValueGroup},
-    Bls12381G1Impl, Bls12381G2Impl, Signature, SignatureSchemes, SignatureShare,
 };
 use multi_codec::Codec;
 use multi_trait::{EncodeInto, TryDecodeFrom};
@@ -221,7 +221,7 @@ impl From<SigShare> for Vec<u8> {
     fn from(val: SigShare) -> Self {
         let mut v = Vec::default();
         // add in the share identifier
-        v.append(&mut val.0 .0.to_be_bytes().into());
+        v.append(&mut val.0.0.to_be_bytes().into());
         // add in the share threshold
         v.append(&mut Varuint(val.1).into());
         // add in the share limit
@@ -256,6 +256,19 @@ impl<'a> TryDecodeFrom<'a> for SigShare {
         let (threshold, ptr) = Varuint::<usize>::try_decode_from(ptr)?;
         // try to decode the limit
         let (limit, ptr) = Varuint::<usize>::try_decode_from(ptr)?;
+        // enforce participant caps to bound work from crafted input (CWE-400)
+        if *threshold > threshold_meta::MAX_THRESHOLD_PARTICIPANTS {
+            return Err(Error::TooManyParticipants(
+                *threshold,
+                threshold_meta::MAX_THRESHOLD_PARTICIPANTS,
+            ));
+        }
+        if *limit > threshold_meta::MAX_THRESHOLD_PARTICIPANTS {
+            return Err(Error::TooManyParticipants(
+                *limit,
+                threshold_meta::MAX_THRESHOLD_PARTICIPANTS,
+            ));
+        }
         // try to decode the share type id
         let (share_type, ptr) = SchemeTypeId::try_decode_from(ptr)?;
         // try to decode the share data
@@ -545,7 +558,7 @@ impl<'a> ThresholdView for View<'a> {
             Codec::Bls12381G1Msig => Codec::Bls12381G1ShareMsig,
             Codec::Bls12381G2Msig => Codec::Bls12381G2ShareMsig,
             Codec::Bls12381G1ShareMsig | Codec::Bls12381G2ShareMsig => {
-                return Err(SharesError::IsASignatureShare.into())
+                return Err(SharesError::IsASignatureShare.into());
             }
             _ => return Err(Error::UnsupportedAlgorithm(self.ms.codec.to_string())),
         };
@@ -576,7 +589,7 @@ impl<'a> ThresholdView for View<'a> {
                 // and the payload encoding value
                 let share = Builder::new(codec)
                     .with_message_bytes(&self.ms.message.as_slice())
-                    .with_identifier(&share.0 .0.to_be_bytes())
+                    .with_identifier(&share.0.0.to_be_bytes())
                     .with_threshold(share.1)
                     .with_limit(share.2)
                     .with_signature_bytes(&share.4)
@@ -596,7 +609,7 @@ impl<'a> ThresholdView for View<'a> {
         match self.ms.codec {
             Codec::Bls12381G1Msig | Codec::Bls12381G2Msig => {}
             Codec::Bls12381G1ShareMsig | Codec::Bls12381G2ShareMsig => {
-                return Err(SharesError::IsASignatureShare.into())
+                return Err(SharesError::IsASignatureShare.into());
             }
             _ => return Err(Error::UnsupportedAlgorithm(self.ms.codec.to_string())),
         };
@@ -749,7 +762,7 @@ impl<'a> ThresholdView for View<'a> {
                     let av = self.ms.attr_view()?;
                     av.payload_encoding()?
                 };
-                Builder::new_from_bls_signature(&sig)?
+                Builder::new_from_bls_signature_with_codec(self.ms.codec, &sig)?
                     .with_message_bytes(&self.ms.message.as_slice())
                     .with_payload_encoding(encoding)
                     .try_build()
@@ -795,7 +808,7 @@ impl<'a> ThresholdView for View<'a> {
                     let av = self.ms.attr_view()?;
                     av.payload_encoding()?
                 };
-                Builder::new_from_bls_signature(&sig)?
+                Builder::new_from_bls_signature_with_codec(self.ms.codec, &sig)?
                     .with_message_bytes(&self.ms.message.as_slice())
                     .with_payload_encoding(encoding)
                     .try_build()
@@ -949,7 +962,7 @@ impl<'a> ThresholdView for View<'a> {
                     let av = self.ms.attr_view()?;
                     av.payload_encoding()?
                 };
-                Builder::new_from_bls_signature(&sig)?
+                Builder::new_from_bls_signature_with_codec(self.ms.codec, &sig)?
                     .with_message_bytes(&self.ms.message.as_slice())
                     .with_payload_encoding(encoding)
                     .try_build()
@@ -994,7 +1007,7 @@ impl<'a> ThresholdView for View<'a> {
                     let av = self.ms.attr_view()?;
                     av.payload_encoding()?
                 };
-                Builder::new_from_bls_signature(&sig)?
+                Builder::new_from_bls_signature_with_codec(self.ms.codec, &sig)?
                     .with_message_bytes(&self.ms.message.as_slice())
                     .with_payload_encoding(encoding)
                     .try_build()

@@ -2,8 +2,8 @@
 //! NIST P-256/P-384/P-521 ECDSA multisig view.
 
 use crate::{
-    error::{AttributesError, ConversionsError},
     AttrId, AttrView, ConvView, DataView, Error, Multisig, Views,
+    error::{AttributesError, ConversionsError},
 };
 use multi_codec::Codec;
 

@@ -18,14 +18,20 @@
 
 use crate::{AttrId, Error, Multisig};
 use chacha20poly1305::{
-    aead::{Aead, KeyInit, Payload},
     ChaCha20Poly1305, Nonce,
+    aead::{Aead, KeyInit, Payload},
 };
 use multi_codec::Codec;
 use multi_trait::{EncodeInto, TryDecodeFrom};
 use multi_util::Varuint;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
+
+/// Maximum number of threshold participants (t or n) accepted when decoding
+/// from untrusted wire data. The 1024 ceiling comfortably exceeds every
+/// legitimate threshold signature configuration while bounding the work a
+/// crafted input can force the decoder to perform (mitigates CWE-400).
+pub const MAX_THRESHOLD_PARTICIPANTS: usize = 1024;
 
 /// Disclosure mode for threshold parameters (t and n).
 #[repr(u8)]

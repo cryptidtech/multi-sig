@@ -2,7 +2,7 @@
 //! Generic Ed25519 hybrid multisig view (codec-agnostic signature holder).
 //! Used by all Ed25519-based Birds-of-Prey hybrid signature codecs.
 
-use crate::{error::AttributesError, AttrId, AttrView, ConvView, DataView, Error, Multisig};
+use crate::{AttrId, AttrView, ConvView, DataView, Error, Multisig, error::AttributesError};
 use multi_codec::Codec;
 
 pub(crate) struct View<'a> {

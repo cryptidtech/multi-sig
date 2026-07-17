@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! SLH-DSA multisig view; FIPS 205. Supports all 12 parameter sets (Sha2_128f/s through Shake256f/s).
 
-use crate::{error::AttributesError, AttrId, AttrView, ConvView, DataView, Error, Multisig};
+use crate::{AttrId, AttrView, ConvView, DataView, Error, Multisig, error::AttributesError};
 use multi_codec::Codec;
 
 pub(crate) struct View<'a> {

@@ -9,7 +9,7 @@ mod tests {
     use multi_base::Base;
     use multi_codec::Codec;
     use multi_trait::Null;
-    use serde_test::{assert_tokens, Configure, Token};
+    use serde_test::{Configure, Token, assert_tokens};
 
     #[test]
     fn test_ed25519_serde_compact() {
@@ -38,8 +38,9 @@ mod tests {
 
         assert_tokens(
             &ms.readable(),
-            &[Token::BorrowedStr("zD4bHwUem3jQTfFd82d2koBo7sa2cAr9mvAJcXEVSAPe8mjDHRaGRYYjFmphxaAsUhENDevuR7J3xtWpW41pqEKrpMQfkZEwFopdm")
-            ],
+            &[Token::BorrowedStr(
+                "zD4bHwUem3jQTfFd82d2koBo7sa2cAr9mvAJcXEVSAPe8mjDHRaGRYYjFmphxaAsUhENDevuR7J3xtWpW41pqEKrpMQfkZEwFopdm",
+            )],
         )
     }
 
@@ -65,7 +66,9 @@ mod tests {
                 Token::Seq { len: Some(1) },
                 Token::Tuple { len: 2 },
                 Token::BorrowedStr("sig-data"),
-                Token::BorrowedStr("f4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+                Token::BorrowedStr(
+                    "f4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                ),
                 Token::TupleEnd,
                 Token::SeqEnd,
                 Token::StructEnd,
@@ -122,8 +125,9 @@ mod tests {
 
         assert_tokens(
             &ms.readable(),
-            &[Token::BorrowedStr("zD4bGmynFsniw14r8UfRGjEvoBEGLXGSRh69iptfk43kLUGCLhXMFVmkmLXWoj9AzWGXpG183NV8jXNdsKwY8bJVKDRhWnkUV9w6f")
-            ],
+            &[Token::BorrowedStr(
+                "zD4bGmynFsniw14r8UfRGjEvoBEGLXGSRh69iptfk43kLUGCLhXMFVmkmLXWoj9AzWGXpG183NV8jXNdsKwY8bJVKDRhWnkUV9w6f",
+            )],
         )
     }
 
@@ -149,7 +153,9 @@ mod tests {
                 Token::Seq { len: Some(1) },
                 Token::Tuple { len: 2 },
                 Token::BorrowedStr("sig-data"),
-                Token::BorrowedStr("f4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+                Token::BorrowedStr(
+                    "f4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                ),
                 Token::TupleEnd,
                 Token::SeqEnd,
                 Token::StructEnd,
@@ -244,7 +250,9 @@ mod tests {
                 Token::Seq { len: Some(1) },
                 Token::Tuple { len: 2 },
                 Token::BorrowedStr("sig-data"),
-                Token::BorrowedStr("f4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+                Token::BorrowedStr(
+                    "f4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                ),
                 Token::TupleEnd,
                 Token::SeqEnd,
                 Token::StructEnd,
@@ -320,9 +328,9 @@ mod tests {
 
         assert_tokens(
             &ms.readable(),
-            &[
-                Token::BorrowedStr("hzr1ejjsyyayykybounzzo85hy3tfkhe19ro6k973bknezbqysqm4u9oax7yfx5t6wnuyz6rnfym7zttnrfajamxdoy91hyobyebonyaryrnykyeb")
-            ],
+            &[Token::BorrowedStr(
+                "hzr1ejjsyyayykybounzzo85hy3tfkhe19ro6k973bknezbqysqm4u9oax7yfx5t6wnuyz6rnfym7zttnrfajamxdoy91hyobyebonyaryrnykyeb",
+            )],
         )
     }
 
@@ -337,7 +345,10 @@ mod tests {
         assert_tokens(
             &ms.readable(),
             &[
-                Token::Struct { name: "multisig", len: 3, },
+                Token::Struct {
+                    name: "multisig",
+                    len: 3,
+                },
                 Token::BorrowedStr("codec"),
                 Token::BorrowedStr("bls12_381-g1-share-msig"),
                 Token::BorrowedStr("message"),
@@ -346,7 +357,9 @@ mod tests {
                 Token::Seq { len: Some(5) },
                 Token::Tuple { len: 2 },
                 Token::BorrowedStr("sig-data"),
-                Token::BorrowedStr("f3098af781f7c0662557112f921e57fb90a848b85c0b397a9fe187f4057ee3ea0a60bf8822817dbc62221709c2de3803f2e"),
+                Token::BorrowedStr(
+                    "f3098af781f7c0662557112f921e57fb90a848b85c0b397a9fe187f4057ee3ea0a60bf8822817dbc62221709c2de3803f2e",
+                ),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
                 Token::BorrowedStr("scheme"),
