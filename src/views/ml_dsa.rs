@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! ML-DSA 44/65/87 multisig view; FIPS 204.
 
-use crate::{error::AttributesError, AttrId, AttrView, ConvView, DataView, Error, Multisig};
+use crate::{AttrId, AttrView, ConvView, DataView, Error, Multisig, error::AttributesError};
 use multi_codec::Codec;
 
 pub(crate) struct View<'a> {

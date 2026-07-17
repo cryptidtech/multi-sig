@@ -27,9 +27,9 @@ pub mod slh_dsa;
 /// Threshold disclosure modes and encrypted metadata helpers.
 pub mod threshold_meta;
 pub use threshold_meta::{
-    decrypt_threshold_meta, disclosure_mode, encrypt_threshold_meta, generate_meta_key,
-    read_threshold_params, stamp_disclosure_attrs, DisclosureView, ThresholdDisclosure,
-    ThresholdMetaCipher, ThresholdMetadata,
+    DisclosureView, MAX_THRESHOLD_PARTICIPANTS, ThresholdDisclosure, ThresholdMetaCipher,
+    ThresholdMetadata, decrypt_threshold_meta, disclosure_mode, encrypt_threshold_meta,
+    generate_meta_key, read_threshold_params, stamp_disclosure_attrs,
 };
 
 ///

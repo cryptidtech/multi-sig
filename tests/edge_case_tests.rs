@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Edge case tests for multi-sig
+#![allow(clippy::explicit_iter_loop)]
 
 use multi_codec::Codec;
 use multi_sig::{Builder, Multisig, SIG_CODECS};

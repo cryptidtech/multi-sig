@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Performance benchmarks for multi-sig
+#![allow(
+    clippy::semicolon_if_nothing_returned,
+    clippy::uninlined_format_args,
+    clippy::doc_markdown
+)]
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use multi_codec::Codec;
 use multi_sig::{Builder, Multisig, SIG_CODECS};
 use multi_trait::TryDecodeFrom;
