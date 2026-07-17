@@ -11,6 +11,14 @@ mod tests {
     use multi_trait::Null;
     use serde_test::{Configure, Token, assert_tokens};
 
+    /// Serialize a value to CBOR bytes using `ciborium` (replaces the
+    /// unmaintained `serde_cbor` dev-dependency).
+    fn cbor_to_vec<T: serde::Serialize>(value: &T) -> Vec<u8> {
+        let mut buf = Vec::new();
+        ciborium::into_writer(value, &mut buf).expect("CBOR serialize");
+        buf
+    }
+
     #[test]
     fn test_ed25519_serde_compact() {
         let ms = Builder::new(Codec::Eddsa)
@@ -93,8 +101,8 @@ mod tests {
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let v = serde_cbor::to_vec(&ms1).unwrap();
-        let ms2: Multisig = serde_cbor::from_slice(v.as_slice()).unwrap();
+        let v = cbor_to_vec(&ms1);
+        let ms2: Multisig = ciborium::from_reader(v.as_slice()).unwrap();
         assert_eq!(ms1, ms2);
     }
 
@@ -180,8 +188,8 @@ mod tests {
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let v = serde_cbor::to_vec(&ms1).unwrap();
-        let ms2: Multisig = serde_cbor::from_slice(v.as_slice()).unwrap();
+        let v = cbor_to_vec(&ms1);
+        let ms2: Multisig = ciborium::from_reader(v.as_slice()).unwrap();
         assert_eq!(ms1, ms2);
     }
 
@@ -277,8 +285,8 @@ mod tests {
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let v = serde_cbor::to_vec(&ms1).unwrap();
-        let ms2: Multisig = serde_cbor::from_slice(v.as_slice()).unwrap();
+        let v = cbor_to_vec(&ms1);
+        let ms2: Multisig = ciborium::from_reader(v.as_slice()).unwrap();
         assert_eq!(ms1, ms2);
     }
 
@@ -404,8 +412,8 @@ mod tests {
         .unwrap()
         .to_inner();
 
-        let v = serde_cbor::to_vec(&ms1).unwrap();
-        let ms2: Multisig = serde_cbor::from_slice(v.as_slice()).unwrap();
+        let v = cbor_to_vec(&ms1);
+        let ms2: Multisig = ciborium::from_reader(v.as_slice()).unwrap();
         assert_eq!(ms1, ms2);
     }
 
