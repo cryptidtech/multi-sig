@@ -33,9 +33,6 @@ pub enum Error {
     /// Utf8 error
     #[error(transparent)]
     Utf8(#[from] std::string::FromUtf8Error),
-    /// Vsss error
-    #[error("Vsss share error: {0}")]
-    Vsss(String),
     /// Missing sigil 0x1239
     #[error("Missing Multisig sigil")]
     MissingSigil,
@@ -204,7 +201,6 @@ impl Error {
             Self::Multiutil(_) => "Multiutil",
             Self::Fmt(_) => "Fmt",
             Self::Utf8(_) => "Utf8",
-            Self::Vsss(_) => "Vsss",
             Self::MissingSigil => "MissingSigil",
             Self::DuplicateAttribute(_) => "DuplicateAttribute",
             Self::TooManyAttributes(_, _) => "TooManyAttributes",

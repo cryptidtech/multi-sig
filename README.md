@@ -5,16 +5,11 @@
 
 # Multisig
 
-A Rust implementation of the [multiformats][MULTIFORMATS] [multisig specification][MULTISIG]. The
-published crate is **`multi-sig`** (depend on it as `multi-sig = "1.0"` in `Cargo.toml` and
-import it as `multi_sig` in Rust, e.g. `use multi_sig::Builder;`).
+A Rust implementation of the [multiformats][MULTIFORMATS] [multisig specification][MULTISIG]. The published crate is **`multi-sig`**. Depend on it as `multi-sig = "1.0"` in `Cargo.toml`. Import it as `multi_sig` in Rust, for example `use multi_sig::Builder;`.
 
 ## Current Status
 
-This crate provides self-describing digital signature containers (`Multisig`) for 35 signature
-codecs spanning classical, post-quantum, and hybrid schemes. It supports BLS12-381 threshold
-signatures with share accumulation and combination, and SSH signature interoperability for all
-classical schemes plus BLS12-381 combined and share signatures.
+This crate gives self-describing digital signature containers (`Multisig`) for 35 signature codecs. The codecs span classical, post-quantum, and hybrid schemes. It supports BLS12-381 threshold signatures with share accumulation and combination. It supports SSH signature interoperability for all classical schemes plus BLS12-381 combined and share signatures.
 
 **Supported signature families:**
 
@@ -23,27 +18,15 @@ classical schemes plus BLS12-381 combined and share signatures.
 - **Hybrid:** Ed25519+MAYO-2, Ed25519+ML-DSA-65, Ed25519+FN-DSA-512, BLS12-381-G1+ML-DSA-65, BLS12-381-G1+FN-DSA-512, BLS12-381-G1+MAYO-1, BLS12-381-G1+MAYO-2
 - **Threshold:** BLS12-381 G1/G2 combined and share signatures with threshold disclosure modes
 
-**SSH interoperability:** Ed25519, secp256k1, NIST P-256/P-384/P-521, RSA-SHA256, and BLS12-381
-G1/G2 (combined and share signatures) convert to/from OpenSSH format using the
-[`ssh-key`][SSHKEY] crate. Non-standard algorithms use [RFC 4251][RFC4251] "additional algorithms"
-names with the `@multisig` domain suffix (e.g. `secp256k1@multisig`, `bls12_381-g1-share@multisig`).
+**SSH interoperability:** Ed25519, secp256k1, NIST P-256/P-384/P-521, RSA-SHA256, and BLS12-381 G1/G2 (combined and share signatures) convert to and from OpenSSH format with the [`ssh-key`][SSHKEY] crate. Non-standard algorithms use [RFC 4251][RFC4251] "additional algorithms" names with the `@multisig` domain suffix, for example `secp256k1@multisig` and `bls12_381-g1-share@multisig`.
 
 ## Introduction
 
-This is a Rust implementation of a multicodec container format for digital signatures. The
-design is intentionally abstract to support any kind of digital signature data for any
-protocol. The format is best thought of as a container of signature data with abstract,
-protocol-specific views backed by a generic, self-describing data storage format.
+This is a Rust implementation of a multicodec container format for digital signatures. The design is intentionally abstract. It supports any kind of digital signature data for any protocol. The format is a container of signature data with abstract, protocol-specific views backed by a generic, self-describing data storage format.
 
-Every piece of data in a serialized Multisig object either has a known fixed size or a
-self-describing variable size (via `Varuint`/`Varbytes`), so software processing these objects
-does not need to support all digital signature protocols to accurately calculate the size of the
-serialized object and skip over it if needed.
+Every piece of data in a serialized Multisig object either has a known fixed size or a self-describing variable size via `Varuint` and `Varbytes`. Software that processes these objects does not need to support all digital signature protocols to calculate the size of the serialized object and skip over it.
 
-The only operations that can be executed on a Multisig object are those that return attribute
-data and the threshold signature operations for accumulating and combining signature shares. Any
-operation that involves a cryptographic key (e.g. signing, verifying) is found in the
-companion [`Multi-Key`][MULTIKEY] crate.
+The only operations on a Multisig object are those that return attribute data and the threshold signature operations for accumulating and combining signature shares. Any operation that involves a cryptographic key (for example, signing or verifying) is in the companion [`Multi-Key`][MULTIKEY] crate.
 
 ## Wire Format
 
@@ -54,15 +37,10 @@ SIGIL (0x1239) | signature_codec | Varbytes(message) | Varuint(num_attributes) |
   [ AttrId | Varbytes(attribute_value) ] * num_attributes
 ```
 
-- **SIGIL** — the multicodec `0x1239` (`Multisig`) distinguishes this format from the older
-  Varsig (`0x34`).
-- **signature_codec** — a varuint-encoded multicodec tag identifying the signature algorithm.
-- **message** — `Varbytes` (length-prefixed). If non-empty, the signature is **combined**
-  (carries the signed message in-band). If empty, the signature is **detached** (the message
-  must be supplied out-of-band for verification).
-- **attributes** — a counted list of `(AttrId, Varbytes)` pairs. Attribute IDs are u8
-  enum values. Duplicate IDs are rejected at decode time. Attributes are emitted in `BTreeMap`
-  order (sorted by ID) for deterministic encoding.
+- **SIGIL** — the multicodec `0x1239` (`Multisig`) distinguishes this format from the older Varsig (`0x34`).
+- **signature_codec** — a varuint-encoded multicodec tag that identifies the signature algorithm.
+- **message** — `Varbytes` (length-prefixed). If non-empty, the signature is **combined** (it carries the signed message in-band). If empty, the signature is **detached** (the message must be supplied out-of-band for verification).
+- **attributes** — a counted list of `(AttrId, Varbytes)` pairs. Attribute IDs are u8 enum values. The decoder rejects duplicate IDs at decode time. Attributes are emitted in `BTreeMap` order (sorted by ID) for deterministic encoding.
 
 The preferred base encoding for Multisig strings is `Base16Lower` (lowercase hex).
 
@@ -108,9 +86,7 @@ The preferred base encoding for Multisig strings is `Base16Lower` (lowercase hex
 
 ### Hybrid Signatures (Classical + Post-Quantum)
 
-Hybrid signatures use a nested combiner construction: the classical component signs the
-message, then the PQ component signs `message || classical_signature`. Verification requires
-both components to pass.
+Hybrid signatures use a nested combiner construction. The classical component signs the message. The PQ component then signs `message || classical_signature`. Verification requires both components to pass.
 
 | Codec | Multicodec name | Components | SSH |
 |---|---|---|---|
@@ -148,9 +124,7 @@ Each Multisig carries a set of attributes identified by a `u8` code:
 
 ## Views on the Multisig Data
 
-To provide an abstract interface to digital signatures of all schemes, this crate provides
-"views" on the Multisig data. These are read-only (or copy-on-write) abstract interfaces with
-implementations for different supporting signature protocols.
+To provide an abstract interface to digital signatures of all schemes, this crate gives "views" on the Multisig data. These are read-only or copy-on-write abstract interfaces with implementations for different supporting signature protocols.
 
 ### View Traits
 
@@ -161,7 +135,7 @@ implementations for different supporting signature protocols.
 | `ConvView` | `to_ssh_signature()` | Convert to an OpenSSH `ssh_key::Signature` |
 | `ThresholdAttrView` | `threshold()`, `limit()`, `identifier()`, `threshold_data()` | Read threshold parameters (BLS only) |
 | `ThresholdView` | `shares()`, `shares_with_disclosure()`, `add_share()`, `add_share_with_meta()`, `combine()`, `combine_with_meta()` | Accumulate and combine threshold signature shares (BLS only) |
-| `ThresholdDisclosureView` | `disclosure_mode()`, `read_threshold_params()`, `to_disclosure()` | Read/convert the threshold disclosure mode (all codecs) |
+| `ThresholdDisclosureView` | `disclosure_mode()`, `read_threshold_params()`, `to_disclosure()` | Read or convert the threshold disclosure mode (all codecs) |
 | `Views` | `attr_view()`, `data_view()`, `conv_view()`, `threshold_attr_view()`, `threshold_view()`, `disclosure_view()` | Dispatcher trait — obtain any view from a `Multisig` |
 
 ### View Dispatch by Codec Family
@@ -180,13 +154,11 @@ implementations for different supporting signature protocols.
 | Ed25519-MAYO2 | `ed25519_mayo2::View` | `ed25519_mayo2::View` | `ed25519_mayo2::View` | — | — |
 | Other hybrids | `ed25519_hybrid::View` | `ed25519_hybrid::View` | `ed25519_hybrid::View` | — | — |
 
-The `disclosure_view()` method is codec-agnostic and available on all codecs.
+The `disclosure_view()` method is codec-agnostic. It is available on all codecs.
 
 ### Copy-on-Write Semantics
 
-Operations that appear to mutate the Multisig (`add_share`, `combine`, `to_disclosure`) in fact
-perform a copy-on-write (CoW) operation and return a **new** `Multisig`. The original is
-unchanged. This is most visible in `Builder::try_build()`:
+Operations that appear to mutate the Multisig (`add_share`, `combine`, `to_disclosure`) in fact perform a copy-on-write (CoW) operation. They return a **new** `Multisig`. The original is unchanged. This is most visible in `Builder::try_build()`:
 
 ```rust
 let mut ms = Builder::new(Codec::Bls12381G2Msig).try_build()?;
@@ -224,10 +196,7 @@ The `Builder` constructs `Multisig` objects:
 
 ## Generating and Verifying Signatures
 
-Signature generation and verification are performed in the companion [`Multi-Key`][MULTIKEY]
-crate using the `SignView` and `VerifyView` traits on a `Multikey`. The `Multikey::sign_view()`
-method produces a `Multisig`, and `Multikey::verify_view()` verifies a `Multisig` against an
-optional message.
+Signature generation and verification are in the companion [`Multi-Key`][MULTIKEY] crate. They use the `SignView` and `VerifyView` traits on a `Multikey`. The `Multikey::sign_view()` method produces a `Multisig`. The `Multikey::verify_view()` method verifies a `Multisig` against an optional message.
 
 ### Generating a Signature
 
@@ -260,9 +229,7 @@ mk.verify_view()?.verify(&detached, Some(b"hello world"))?;
 
 ### Combined vs Detached Signatures
 
-A Multisig is **combined** if the `message` field is non-empty — the signed message is carried
-in-band and no external message is needed for verification. A Multisig is **detached** if the
-`message` field is empty — the verifier must supply the original message out-of-band.
+A Multisig is **combined** if the `message` field is non-empty. The signed message is carried in-band. No external message is needed for verification. A Multisig is **detached** if the `message` field is empty. The verifier must supply the original message out-of-band.
 
 The `combined` parameter on `SignView::sign(msg, combined, scheme)` controls this:
 - `combined = true` → the message is stored in the `Multisig` (combined signature)
@@ -274,10 +241,7 @@ For verification, `VerifyView::verify(sig, msg)`:
 
 ## Threshold Signatures (BLS12-381)
 
-BLS12-381 is the only signature family that supports threshold signatures in this crate. A
-threshold BLS signature is produced by multiple parties each signing with their key share, then
-combining the partial signatures into a single combined signature that verifies against the
-group public key.
+BLS12-381 is the only signature family that supports threshold signatures in this crate. A threshold BLS signature is produced by multiple parties. Each party signs with their key share. The partial signatures are then combined into a single combined signature. The combined signature verifies against the group public key.
 
 ### BLS Signature Schemes
 
@@ -285,21 +249,16 @@ BLS12-381 supports three signature schemes, stored as `AttrId::Scheme`:
 
 | Scheme | Code | Description |
 |---|---|---|
-| `Basic` | 0 | Raw BLS; vulnerable to rogue-key attacks without PoP checking |
-| `MessageAugmentation` | 1 | Prepends a domain tag to the message before signing |
-| `ProofOfPossession` | 2 | Requires a separate PoP signature over the public key; **default**; strongest rogue-key defence |
+| `Basic` | 0 | Raw BLS. It is vulnerable to rogue-key attacks without PoP checking. |
+| `MessageAugmentation` | 1 | Prepends a domain tag to the message before signing. |
+| `ProofOfPossession` | 2 | Requires a separate PoP signature over the public key. This is the **default** and the strongest rogue-key defence. |
 
 ### How Threshold Signatures Work
 
-1. A BLS secret key is split into `n` shares with threshold `t` using the `Multi-Key` crate's
-   `ThresholdView::split(t, n)` or `split_with_disclosure(t, n, mode, meta_key)`.
-2. Each shareholder signs the message with their key share, producing a partial signature
-   (`Bls12381G1ShareMsig` or `Bls12381G2ShareMsig`).
-3. The partial signatures are accumulated into a combined `Multisig` using
-   `ThresholdView::add_share()` (CoW) or `add_share_with_meta()`.
-4. Once at least `t` shares are accumulated, `ThresholdView::combine()` (or
-   `combine_with_meta()`) reconstructs the combined BLS signature via Lagrange interpolation
-   in the group.
+1. A BLS secret key is split into `n` shares with threshold `t` using the `Multi-Key` crate's `ThresholdView::split(t, n)` or `split_with_disclosure(t, n, mode, meta_key)`.
+2. Each shareholder signs the message with their key share. This produces a partial signature (`Bls12381G1ShareMsig` or `Bls12381G2ShareMsig`).
+3. The partial signatures are accumulated into a combined `Multisig` with `ThresholdView::add_share()` (CoW) or `add_share_with_meta()`.
+4. Once at least `t` shares are accumulated, `ThresholdView::combine()` (or `combine_with_meta()`) reconstructs the combined BLS signature via Lagrange interpolation in the group.
 
 ### Accumulating and Combining Shares
 
@@ -314,7 +273,7 @@ let shares = mk.threshold_view()?.split(3, 5)?;
 
 // Each share signs the message (done by the shareholder)
 let partial_sigs: Vec<_> = shares.iter()
-    .map(|s| s.sign_view()?.sign(b"message", true, Some(2)))?) // scheme 2 = PoP
+    .map(|s| s.sign_view()?.sign(b"message", true, Some(2))?) // scheme 2 = PoP
     .collect();
 
 // Accumulate shares into a combined Multisig
@@ -329,15 +288,11 @@ let combined = ms.threshold_view()?.combine()?;
 
 ### SSH Round-Trip for BLS Share Signatures
 
-BLS share signatures can be converted to/from SSH format. The SSH algorithm names are
-`bls12_381-g1-share@multisig` and `bls12_381-g2-share@multisig`. The share identifier,
-threshold, and limit are carried inside the SSH signature blob.
+BLS share signatures can convert to and from SSH format. The SSH algorithm names are `bls12_381-g1-share@multisig` and `bls12_381-g2-share@multisig`. The share identifier, threshold, and limit are carried inside the SSH signature blob.
 
 ## Threshold Confidentiality
 
-By default, threshold `t` and share count `n` are stored as **plaintext** attributes on every
-share — any observer of a share learns the threshold parameters. This crate supports three
-configurable disclosure modes that control the confidentiality of `t` and `n`:
+By default, threshold `t` and share count `n` are stored as **plaintext** attributes on every share. Any observer of a share learns the threshold parameters. This crate supports three configurable disclosure modes that control the confidentiality of `t` and `n`:
 
 ### Disclosure Modes
 
@@ -347,27 +302,15 @@ configurable disclosure modes that control the confidentiality of `t` and `n`:
 | `Partial` (1) | encrypted (AEAD) | plaintext attribute | key-holder only | everyone (auditable) |
 | `FullConfidentialial` (2) | encrypted (AEAD) | encrypted (AEAD) | key-holder only | key-holder only |
 
-The encrypted values are sealed with **ChaCha20-Poly1305 AEAD** and stored as a CBOR-encoded
-`ThresholdMetadata` blob in `AttrId::EncryptedThresholdMeta`. The cipher parameters (codec +
-nonce) are recorded in `AttrId::ThresholdMetaCipher` so the blob is self-describing for
-decryption. A separate **meta key** (a 32-byte symmetric `Multikey` with
-`Codec::Chacha20Poly1305`) is required to encrypt/decrypt the metadata.
+The encrypted values are sealed with **ChaCha20-Poly1305 AEAD**. They are stored as a CBOR-encoded `ThresholdMetadata` blob in `AttrId::EncryptedThresholdMeta`. The cipher parameters (codec and nonce) are recorded in `AttrId::ThresholdMetaCipher` so the blob is self-describing for decryption. A separate **meta key** (a 32-byte symmetric `Multikey` with `Codec::Chacha20Poly1305`) is required to encrypt and decrypt the metadata.
 
 ### When to Use Each Mode
 
-- **`Full`** — Use when t and n are not sensitive. This is the default and is backward-compatible
-  with all existing shares. Appropriate for open governance systems where the threshold
-  structure is public knowledge.
+- **`Full`** — Use when t and n are not sensitive. This is the default. It is backward-compatible with all existing shares. It is appropriate for open governance systems where the threshold structure is public knowledge.
 
-- **`Partial`** — Use when the total number of participants `n` should be auditable (e.g. for
-  governance transparency) but the threshold `t` should be hidden from share holders and
-  observers. Hiding `t` means an adversary who compromises some shares does not know how many
-  more they need to reconstruct. The `meta_key` is required to read `t` but `n` is freely
-  readable.
+- **`Partial`** — Use when the total number of participants `n` should be auditable (for example, for governance transparency) but the threshold `t` should be hidden from share holders and observers. Hiding `t` means an adversary who compromises some shares does not know how many more they need to reconstruct. The `meta_key` is required to read `t`. The value `n` is freely readable.
 
-- **`FullConfidentialial`** — Use when both `t` and `n` must be kept secret. An observer who
-  sees a share cannot determine the group size or how many shares are needed. This is the
-  strongest confidentiality mode. The `meta_key` is required to read both `t` and `n`.
+- **`FullConfidentialial`** — Use when both `t` and `n` must be kept secret. An observer who sees a share cannot determine the group size or how many shares are needed. This is the strongest confidentiality mode. The `meta_key` is required to read both `t` and `n`.
 
 ### Trade-offs
 
@@ -381,10 +324,7 @@ decryption. A separate **meta key** (a 32-byte symmetric `Multikey` with
 | Risk if `meta_key` lost | n/a | `t` irrecoverable | `t` and `n` irrecoverable |
 | Performance overhead | none | negligible (AEAD on ~10 bytes) | negligible |
 
-**Key management risk:** Losing the `meta_key` makes `t` (Partial) or both `t`/`n`
-(FullConfidentialial) irrecoverable, preventing share combination. The `meta_key` should be
-stored/backed up using the existing at-rest encryption mechanisms. You can always convert back
-to `Full` mode (with the `meta_key`) before losing it.
+**Key management risk.** Losing the `meta_key` makes `t` (Partial) or both `t` and `n` (FullConfidentialial) irrecoverable. This prevents share combination. The `meta_key` should be stored or backed up with the existing at-rest encryption mechanisms. You can always convert back to `Full` mode (with the `meta_key`) before you lose it.
 
 ### Creating Shares with a Disclosure Mode
 
@@ -439,20 +379,18 @@ let combined = ms.threshold_view()?
 
 ### Converting Between Modes
 
-The `to_disclosure()` method converts between any pair of modes. It reads the current `t`/`n`
-(decrypting if needed with `current_meta_key`), then re-stamps the attributes in the target mode
-(encrypting if needed with `meta_key`):
+The `to_disclosure()` method converts between any pair of modes. It reads the current `t` and `n` (decrypting if needed with `current_meta_key`), then re-stamps the attributes in the target mode (encrypting if needed with `meta_key`):
 
 ```rust
-// Full → Partial
+// Full -> Partial
 let partial = full.disclosure_view()?
     .to_disclosure(ThresholdDisclosure::Partial, Some(&meta_mk), None)?;
 
-// Partial → FullConfidentialial
+// Partial -> FullConfidentialial
 let confidential = partial.disclosure_view()?
     .to_disclosure(ThresholdDisclosure::FullConfidentialial, Some(&meta_mk), Some(&meta_mk))?;
 
-// FullConfidentialial → Full
+// FullConfidentialial -> Full
 let full_again = confidential.disclosure_view()?
     .to_disclosure(ThresholdDisclosure::Full, None, Some(&meta_mk))?;
 ```
@@ -461,30 +399,21 @@ let full_again = confidential.disclosure_view()?
 
 With the `serde` feature (default), `Multisig` supports dual-form serialization:
 
-- **Human-readable** (JSON, etc.): a struct `{ "codec": "...", "message": "...", "attributes": [...] }`
-  where `codec` is the multicodec name, `message` is a base-encoded `Varbytes`, and `attributes`
-  is a list of `(name, base-encoded-value)` tuples.
+- **Human-readable** (JSON, etc.): a struct `{ "codec": "...", "message": "...", "attributes": [...] }` where `codec` is the multicodec name, `message` is a base-encoded `Varbytes`, and `attributes` is a list of `(name, base-encoded-value)` tuples.
 - **Compact** (binary formats): the raw wire-format bytes via `serialize_bytes`.
 
-`EncodedMultisig` serializes as a single base-encoded string in readable form and as raw bytes
-in compact form. `AttrId` round-trips as either a name string or a `u8`.
+`EncodedMultisig` serializes as a single base-encoded string in readable form and as raw bytes in compact form. `AttrId` round-trips as either a name string or a `u8`.
 
 ## Type-Safe Wrappers
 
-The `types` module provides newtypes for type safety:
+The `types` module gives newtypes for type safety:
 
-- `SignatureBytes(Vec<u8>)` — wraps raw signature bytes with `Display` (hex), `AsRef<[u8]>`, and
-  safe conversions.
-- `SignatureScheme(Codec)` — wraps a `Codec` as a signature scheme identifier, `Copy`, with
-  `name()` and `code()` accessors.
+- `SignatureBytes(Vec<u8>)` — wraps raw signature bytes with `Display` (hex), `AsRef<[u8]>`, and safe conversions.
+- `SignatureScheme(Codec)` — wraps a `Codec` as a signature scheme identifier. It is `Copy`. It gives `name()` and `code()` accessors.
 
 ## What about Varsig?
 
-There already exists a multicodec signature format called Varsig (`0x34`) but it has serious
-design deficiencies: it relies on out-of-band context for signature-specific values, making it
-impossible to decode without supporting every key codec. Multisig uses a new multicodec sigil
-`0x1239` to distinguish the two formats. Converting from Varsig to Multisig is straightforward:
-pull the relevant data out of the Varsig and use the `Builder` to construct a Multisig.
+A multicodec signature format called Varsig (`0x34`) already exists. It has serious design deficiencies. It relies on out-of-band context for signature-specific values. This makes it impossible to decode without supporting every key codec. Multisig uses a new multicodec sigil `0x1239` to distinguish the two formats. To convert from Varsig to Multisig, pull the relevant data out of the Varsig and use the `Builder` to construct a Multisig.
 
 ## Cargo Features
 

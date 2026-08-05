@@ -1,8 +1,8 @@
 [package]
 name = "multi-sig"
-version = "1.0.8"
+version = "1.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.87"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multisig self-describing multicodec implementation for digital signatures"
 repository = "https://github.com/cryptidtech/multi-sig.git"
@@ -26,9 +26,9 @@ elliptic-curve = "0.14"
 getrandom = { version = "0.4" }
 # blsful configured per-target below (blst for native, rust for wasm)
 multi-base = "1.0"
-multi-codec = "1.0"
+multi-codec = "1.1"
 multi-trait = "1.0"
-multi-util = "1.0"
+multi-util = "1.1"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 ssh-encoding = "0.3"
 thiserror = { version = "2.0" }
@@ -36,11 +36,12 @@ unsigned-varint = { version = "0.8", features = ["std"] }
 zeroize = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-blsful = { version = "4.0.0-rc1", default-features = false, features = ["rust"] }
+blsful = { version = "4.0.0", default-features = false, features = ["rust"] }
+getrandom = { version = "0.4", features = ["wasm_js"] }
 ssh-key = { version = "0.7.0-rc.11", default-features = false, features = ["alloc", "ecdsa", "ed25519"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-blsful = { version = "4.0.0-rc1", default-features = false, features = ["blst"] }
+blsful = { version = "4.0.0", default-features = false, features = ["blst"] }
 ssh-key = { version = "0.7.0-rc.11", default-features = false, features = ["alloc", "ecdsa", "ed25519"] }
 
 [dev-dependencies]
