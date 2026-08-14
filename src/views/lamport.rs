@@ -16,15 +16,41 @@ use crate::{
     error::{AttributesError, SharesError},
     views::ThresholdDisclosure,
 };
-use lamport_signature_plus::{LamportDigest, LamportFixedDigest, Signature, SignatureShare};
+use blake2::{Blake2b512, Blake2s256};
+use lamport_signature_plus::{
+    LamportDigest, LamportExtendableDigest, LamportFixedDigest, Signature, SignatureShare,
+};
 use multi_codec::Codec;
 use multi_trait::TryDecodeFrom;
 use multi_util::{Varbytes, Varuint};
+use sha2::{Sha256, Sha384, Sha512};
 use sha3::{Sha3_256, Sha3_384, Sha3_512};
+use shake::{Shake128, Shake256};
 
 type Sha3_256Digest = LamportFixedDigest<Sha3_256>;
 type Sha3_384Digest = LamportFixedDigest<Sha3_384>;
 type Sha3_512Digest = LamportFixedDigest<Sha3_512>;
+type Sha2_256Digest = LamportFixedDigest<Sha256>;
+type Sha2_384Digest = LamportFixedDigest<Sha384>;
+type Sha2_512Digest = LamportFixedDigest<Sha512>;
+type Blake2b512Digest = LamportFixedDigest<Blake2b512>;
+type Blake2s256Digest = LamportFixedDigest<Blake2s256>;
+type Shake128Digest = LamportExtendableDigest<Shake128>;
+type Shake256Digest = LamportExtendableDigest<Shake256>;
+
+/// BLAKE3 digest for Lamport (not a RustCrypto/hashes crate, so direct impl).
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Blake3_256Digest;
+
+impl LamportDigest for Blake3_256Digest {
+    fn digest_size_in_bits() -> usize {
+        256
+    }
+
+    fn digest(data: &[u8]) -> Vec<u8> {
+        blake3::hash(data).as_bytes().to_vec()
+    }
+}
 
 pub(crate) struct View<'a> {
     ms: &'a Multisig,
@@ -44,6 +70,14 @@ fn share_codec(codec: Codec) -> Result<Codec, Error> {
         Codec::LamportSha3256Sig => Ok(Codec::LamportSha3256SigShare),
         Codec::LamportSha3384Sig => Ok(Codec::LamportSha3384SigShare),
         Codec::LamportSha3512Sig => Ok(Codec::LamportSha3512SigShare),
+        Codec::LamportSha2256Sig => Ok(Codec::LamportSha2256SigShare),
+        Codec::LamportSha2384Sig => Ok(Codec::LamportSha2384SigShare),
+        Codec::LamportSha2512Sig => Ok(Codec::LamportSha2512SigShare),
+        Codec::LamportBlake2B512Sig => Ok(Codec::LamportBlake2B512SigShare),
+        Codec::LamportBlake2S256Sig => Ok(Codec::LamportBlake2S256SigShare),
+        Codec::LamportBlake3256Sig => Ok(Codec::LamportBlake3256SigShare),
+        Codec::LamportShake128Sig => Ok(Codec::LamportShake128SigShare),
+        Codec::LamportShake256Sig => Ok(Codec::LamportShake256SigShare),
         _ => Err(Error::UnsupportedAlgorithm(codec.to_string())),
     }
 }
@@ -70,6 +104,14 @@ fn combine_blobs(codec: Codec, blobs: &[Vec<u8>]) -> Result<Vec<u8>, Error> {
         Codec::LamportSha3256Sig => combine_signatures::<Sha3_256Digest>(blobs),
         Codec::LamportSha3384Sig => combine_signatures::<Sha3_384Digest>(blobs),
         Codec::LamportSha3512Sig => combine_signatures::<Sha3_512Digest>(blobs),
+        Codec::LamportSha2256Sig => combine_signatures::<Sha2_256Digest>(blobs),
+        Codec::LamportSha2384Sig => combine_signatures::<Sha2_384Digest>(blobs),
+        Codec::LamportSha2512Sig => combine_signatures::<Sha2_512Digest>(blobs),
+        Codec::LamportBlake2B512Sig => combine_signatures::<Blake2b512Digest>(blobs),
+        Codec::LamportBlake2S256Sig => combine_signatures::<Blake2s256Digest>(blobs),
+        Codec::LamportBlake3256Sig => combine_signatures::<Blake3_256Digest>(blobs),
+        Codec::LamportShake128Sig => combine_signatures::<Shake128Digest>(blobs),
+        Codec::LamportShake256Sig => combine_signatures::<Shake256Digest>(blobs),
         _ => return Err(Error::UnsupportedAlgorithm(codec.to_string())),
     }
     .map_err(|e| SharesError::ShareCombineFailed(e).into())
@@ -202,7 +244,6 @@ impl<'a> ThresholdView for View<'a> {
 
     /// Add a Lamport signature share to the accumulator.
     fn add_share(&self, share: &Multisig) -> Result<Multisig, Error> {
-        // the accumulator must be a Lamport signature codec, not a share
         share_codec(self.ms.codec)?;
         let blob = share.data_view()?.sig_bytes()?;
         let mut blobs = accumulated(self.ms)?;

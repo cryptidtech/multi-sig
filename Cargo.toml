@@ -12,13 +12,14 @@ keywords = ["multiformats", "multisig", "signatures", "crypto"]
 categories = ["cryptography", "encoding"]
 
 [features]
-default = ["serde", "lamport"]
+default = ["serde", "lamport", "xmss"]
 # `serde` is now a required dependency because the core `threshold_meta`
 # module (always compiled) derives `Serialize`/`Deserialize` for its CBOR
 # blob types. The feature flag is retained for backward compatibility and
 # controls only the public `serde` impl module.
 serde = []
-lamport = ["dep:lamport_signature_plus", "dep:sha3"]
+lamport = ["dep:lamport_signature_plus", "dep:sha3", "dep:sha2", "dep:blake2", "dep:shake", "dep:blake3"]
+xmss = ["dep:xmss"]
 
 [dependencies]
 ciborium = "0.2"
@@ -26,10 +27,10 @@ chacha20poly1305 = "0.11"
 elliptic-curve = "0.14"
 getrandom = { version = "0.4" }
 # blsful configured per-target below (blst for native, rust for wasm)
-multi-base = "1.0"
-multi-codec = "1.1"
-multi-trait = "1.0"
-multi-util = "1.1"
+multi-base = { package = "bs-multibase", version = "0.7.0", path = "../bettersign/crates/multibase", default-features = false }
+multi-codec = { package = "bs-multicodec", version = "0.7.0", path = "../bettersign/crates/multicodec" }
+multi-trait = { package = "bs-multitrait", version = "0.7.0", path = "../bettersign/crates/multitrait", default-features = false }
+multi-util = { package = "bs-multiutil", version = "0.7.0", path = "../bettersign/crates/multiutil" }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 ssh-encoding = "0.3"
 thiserror = { version = "2.0" }
@@ -38,6 +39,12 @@ zeroize = "1"
 # Lamport support (feature-gated, default-enabled)
 lamport_signature_plus = { version = "0.5.0-rc2", optional = true }
 sha3 = { version = "0.12", optional = true }
+sha2 = { version = "0.11", optional = true }
+blake2 = { version = "0.11.0-rc.6", optional = true }
+shake = { version = "0.1", optional = true }
+blake3 = { version = "1.8", optional = true }
+# XMSS support (feature-gated, default-enabled)
+xmss = { version = "0.1.0-pre.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 blsful = { version = "4.0.0", default-features = false, features = ["rust"] }

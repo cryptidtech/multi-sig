@@ -9,22 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- `lamport` cargo feature (default-enabled). Adds Lamport one-time hash-based signature support for the SHA3-256/384/512 digest variants (`LamportSha3256Sig`, `LamportSha3384Sig`, `LamportSha3512Sig`, and their `SigShare` variants). The view implements `AttrView`, `DataView`, `ConvView`, `ThresholdAttrView`, and `ThresholdView` for Lamport signature codecs. Threshold signature-share accumulation and combination is supported via `lamport_signature_plus::Signature::combine`.
-- `lamport_signature_plus = "0.5.0-rc2"` and `sha3 = "0.12"` as optional dependencies gated by the `lamport` feature.
-- Lamport codec dispatch arms added to all five `Views` impl methods in `ms.rs` (`attr_view`, `data_view`, `conv_view`, `threshold_attr_view`, `threshold_view`), gated by `#[cfg(feature = "lamport")]`.
-- `lamport` module added to `views.rs`, gated by `#[cfg(feature = "lamport")]`.
+- `lamport` cargo feature (default-enabled). Adds Lamport one-time hash-based signature support for all 11 digest variants (SHA3-256/384/512, SHA2-256/384/512, BLAKE2b-512, BLAKE2s-256, BLAKE3-256, SHAKE-128/256). Each variant has `Sig` and `SigShare` codec entries. The view implements `AttrView`, `DataView`, `ConvView`, `ThresholdAttrView`, and `ThresholdView` for Lamport signature codecs. Threshold signature-share accumulation and combination is supported via `lamport_signature_plus::Signature::combine`.
+- `xmss` cargo feature (default-enabled). Adds XMSS-SHA2_10/16/20_256 (RFC 8391) signature view. The view implements `AttrView`, `DataView`, and `ConvView` for XMSS multisig codecs (`XmssSha210256Msig`, `XmssSha216256Msig`, `XmssSha220256Msig`).
+- `lamport_signature_plus = "0.5.0-rc2"`, `sha3 = "0.12"`, `sha2 = "0.11"`, `blake2 = "0.11.0-rc.6"`, `shake = "0.1"`, `blake3 = "1.8"` as optional dependencies gated by the `lamport` feature.
+- `xmss = "0.1.0-pre.0"` as an optional dependency gated by the `xmss` feature.
+- Lamport codec dispatch arms added to all five `Views` impl methods in `ms.rs`, gated by `#[cfg(feature = "lamport")]`.
+- XMSS codec dispatch arms added to `attr_view`, `data_view`, and `conv_view` in `ms.rs`, gated by `#[cfg(feature = "xmss")]`.
+- `lamport` and `xmss` modules added to `views.rs`, gated by their respective features.
 - `multiple_crate_versions` clippy allow added to `[lints.clippy]` for dependency version conflicts.
+- `multi-codec` dependency repointed to `bs-multicodec` workspace path dep via `package` rename, which has the full Lamport and XMSS codec variants.
 
 ### Changed
 
 - Version bumped from `1.1.0` to `1.2.0` (minor: new feature, no breaking change).
-- The `default` feature now includes `lamport` in addition to `serde`.
+- The `default` feature now includes `lamport` and `xmss` in addition to `serde`.
+- `Codec` variant names updated to match `bs-multicodec` generated names: `SlhdsaSha*` → `SlhDsaSha*`, `Mldsa*Msig` → `MlDsa*Msig` (the standalone `multi-codec` and `bs-multicodec` use different casing in the generated enum).
 
 ### Notes
 
-- Only SHA3-256/384/512 Lamport signature variants are supported in this release because the published `multi-codec 1.1` only has those codec variants. The SHA2, BLAKE2, BLAKE3, and SHAKE Lamport variants require additional codec entries in `multi-codec`. XMSS support is deferred for the same reason — the published `multi-codec` does not have XMSS codec variants.
-- The `lamport_signature_plus` combine logic (previously in the `bs-lamport` wrapper crate) is inlined into `src/views/lamport.rs` using `lamport_signature_plus::Signature::<Digest>::combine` directly.
+- The `lamport_signature_plus` combine logic (previously in the `bs-lamport` wrapper crate) is inlined into `src/views/lamport.rs` using `lamport_signature_plus::Signature::<Digest>::combine` directly. The `bs-lamport` crate is not published as a standalone crate.
+- The XMSS view (`src/views/xmss.rs`) is a simple `AttrView`/`DataView`/`ConvView` impl. It does not implement `ThresholdView` because XMSS does not support threshold signing.
 - The `ThresholdView` trait methods `shares_with_disclosure`, `add_share_with_meta`, and `combine_with_meta` (added in multi-sig 1.1.0) delegate to the base methods (`shares`, `add_share`, `combine`) because Lamport shares do not use encrypted threshold params.
+- The `multi-codec`, `multi-trait`, `multi-util`, and `multi-base` dependencies currently point at the `bs-*` workspace path deps in `bettersign/crates/` via `package` rename. When the standalone `multi-codec` publishes the expanded codec table to crates.io, the path deps will switch to the crates.io versions.
 
 ## [1.1.0] - 2026-08-04
 
