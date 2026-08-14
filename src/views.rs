@@ -12,6 +12,9 @@ pub(crate) mod ed25519_hybrid;
 pub(crate) mod ed25519_mayo2;
 /// FN-DSA post-quantum signature implementation; FIPS 206 (draft)
 pub mod fn_dsa;
+/// Lamport one-time hash-based signature implementation
+#[cfg(feature = "lamport")]
+pub mod lamport;
 /// MAYO post-quantum multivariate signature implementation
 pub mod mayo;
 /// ML-DSA post-quantum signature implementation; FIPS 204

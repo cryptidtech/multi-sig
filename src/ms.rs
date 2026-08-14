@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+#[cfg(feature = "lamport")]
+use crate::views::lamport;
 use crate::{
     AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView, Views,
     error::AttributesError,
@@ -379,6 +381,13 @@ impl Views for Multisig {
             | Codec::Bls12381G2Msig
             | Codec::Bls12381G1ShareMsig
             | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportSha3256Sig
+            | Codec::LamportSha3256SigShare
+            | Codec::LamportSha3384Sig
+            | Codec::LamportSha3384SigShare
+            | Codec::LamportSha3512Sig
+            | Codec::LamportSha3512SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -388,6 +397,13 @@ impl Views for Multisig {
             Codec::Bls12381G1Msig | Codec::Bls12381G2Msig => {
                 Ok(Box::new(bls12381::View::try_from(self)?))
             }
+            #[cfg(feature = "lamport")]
+            Codec::LamportSha3256Sig
+            | Codec::LamportSha3256SigShare
+            | Codec::LamportSha3384Sig
+            | Codec::LamportSha3384SigShare
+            | Codec::LamportSha3512Sig
+            | Codec::LamportSha3512SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }

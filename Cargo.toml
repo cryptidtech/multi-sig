@@ -1,6 +1,6 @@
 [package]
 name = "multi-sig"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
 rust-version = "1.87"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
@@ -12,12 +12,13 @@ keywords = ["multiformats", "multisig", "signatures", "crypto"]
 categories = ["cryptography", "encoding"]
 
 [features]
-default = ["serde"]
+default = ["serde", "lamport"]
 # `serde` is now a required dependency because the core `threshold_meta`
 # module (always compiled) derives `Serialize`/`Deserialize` for its CBOR
 # blob types. The feature flag is retained for backward compatibility and
 # controls only the public `serde` impl module.
 serde = []
+lamport = ["dep:lamport_signature_plus", "dep:sha3"]
 
 [dependencies]
 ciborium = "0.2"
@@ -34,6 +35,9 @@ ssh-encoding = "0.3"
 thiserror = { version = "2.0" }
 unsigned-varint = { version = "0.8", features = ["std"] }
 zeroize = "1"
+# Lamport support (feature-gated, default-enabled)
+lamport_signature_plus = { version = "0.5.0-rc2", optional = true }
+sha3 = { version = "0.12", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 blsful = { version = "4.0.0", default-features = false, features = ["rust"] }
@@ -60,6 +64,7 @@ path = "benches/multisig_bench.rs"
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
+multiple_crate_versions = { level = "allow", priority = 1 }
 
 [lints.rust]
 unsafe_code = "deny"

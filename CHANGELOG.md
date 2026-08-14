@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-13
+
+### Added
+
+- `lamport` cargo feature (default-enabled). Adds Lamport one-time hash-based signature support for the SHA3-256/384/512 digest variants (`LamportSha3256Sig`, `LamportSha3384Sig`, `LamportSha3512Sig`, and their `SigShare` variants). The view implements `AttrView`, `DataView`, `ConvView`, `ThresholdAttrView`, and `ThresholdView` for Lamport signature codecs. Threshold signature-share accumulation and combination is supported via `lamport_signature_plus::Signature::combine`.
+- `lamport_signature_plus = "0.5.0-rc2"` and `sha3 = "0.12"` as optional dependencies gated by the `lamport` feature.
+- Lamport codec dispatch arms added to all five `Views` impl methods in `ms.rs` (`attr_view`, `data_view`, `conv_view`, `threshold_attr_view`, `threshold_view`), gated by `#[cfg(feature = "lamport")]`.
+- `lamport` module added to `views.rs`, gated by `#[cfg(feature = "lamport")]`.
+- `multiple_crate_versions` clippy allow added to `[lints.clippy]` for dependency version conflicts.
+
+### Changed
+
+- Version bumped from `1.1.0` to `1.2.0` (minor: new feature, no breaking change).
+- The `default` feature now includes `lamport` in addition to `serde`.
+
+### Notes
+
+- Only SHA3-256/384/512 Lamport signature variants are supported in this release because the published `multi-codec 1.1` only has those codec variants. The SHA2, BLAKE2, BLAKE3, and SHAKE Lamport variants require additional codec entries in `multi-codec`. XMSS support is deferred for the same reason — the published `multi-codec` does not have XMSS codec variants.
+- The `lamport_signature_plus` combine logic (previously in the `bs-lamport` wrapper crate) is inlined into `src/views/lamport.rs` using `lamport_signature_plus::Signature::<Digest>::combine` directly.
+- The `ThresholdView` trait methods `shares_with_disclosure`, `add_share_with_meta`, and `combine_with_meta` (added in multi-sig 1.1.0) delegate to the base methods (`shares`, `add_share`, `combine`) because Lamport shares do not use encrypted threshold params.
+
 ## [1.1.0] - 2026-08-04
 
 ### Changed
@@ -162,3 +183,4 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added the `types.rs` module with type-safe wrappers.
 - Added a comprehensive test suite for edge cases, proptests, and security.
 - Initial published release on crates.io as `multi-sig`.
+[1.2.0]: https://github.com/cryptidtech/multi-sig/compare/v1.1.0...v1.2.0
