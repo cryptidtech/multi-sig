@@ -29,6 +29,8 @@ pub enum AttrId {
     EncryptedThresholdMeta,
     /// CBOR-encoded cipher info (codec + nonce) for decrypting EncryptedThresholdMeta.
     ThresholdMetaCipher,
+    /// XMSS leaf index (u32 big-endian) for stateful signature schemes.
+    SigIndex,
 }
 
 impl AttrId {
@@ -50,6 +52,7 @@ impl AttrId {
             Self::ThresholdDisclosure => "threshold-disclosure",
             Self::EncryptedThresholdMeta => "encrypted-threshold-meta",
             Self::ThresholdMetaCipher => "threshold-meta-cipher",
+            Self::SigIndex => "sig-index",
         }
     }
 }
@@ -75,6 +78,7 @@ impl TryFrom<u8> for AttrId {
             7 => Ok(Self::ThresholdDisclosure),
             8 => Ok(Self::EncryptedThresholdMeta),
             9 => Ok(Self::ThresholdMetaCipher),
+            10 => Ok(Self::SigIndex),
             _ => Err(AttributesError::InvalidAttributeValue(c).into()),
         }
     }
@@ -119,6 +123,7 @@ impl TryFrom<&str> for AttrId {
             "threshold-disclosure" => Ok(Self::ThresholdDisclosure),
             "encrypted-threshold-meta" => Ok(Self::EncryptedThresholdMeta),
             "threshold-meta-cipher" => Ok(Self::ThresholdMetaCipher),
+            "sig-index" => Ok(Self::SigIndex),
             _ => Err(AttributesError::InvalidAttributeName(s.to_string()).into()),
         }
     }
