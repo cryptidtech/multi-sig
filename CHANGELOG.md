@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-08-18
+
+### Fixed
+
+- The `Verify MSRV` CI job now installs Rust 1.87 to match the declared `rust-version = "1.87"` in `Cargo.toml`. The job was previously titled `Verify MSRV (1.85)` and pinned `dtolnay/rust-toolchain@1.85.0`, which caused the check to fail with `rustc 1.85.0 is not supported by the following packages: blstrs_plus@0.9.0 requires rustc 1.87`. The MSRV was raised to 1.87 in 1.1.0 for `blsful 4.0.0` / `blstrs_plus 0.9.0`, but the CI job name and toolchain pin were not updated at that time. The job name is now `Verify MSRV (1.87)` and the toolchain pin is `dtolnay/rust-toolchain@1.87.0`.
+
+### Changed
+
+- Version bumped from `1.2.0` to `1.2.1` (patch: CI fix, no API or MSRV change).
+
 ## [1.2.0] - 2026-08-13
 
 ### Added
