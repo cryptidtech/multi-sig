@@ -12,6 +12,9 @@ pub(crate) mod ed25519_hybrid;
 pub(crate) mod ed25519_mayo2;
 /// FN-DSA post-quantum signature implementation; FIPS 206 (draft)
 pub mod fn_dsa;
+/// Lamport one-time hash-based signature implementation
+#[cfg(feature = "lamport")]
+pub mod lamport;
 /// MAYO post-quantum multivariate signature implementation
 pub mod mayo;
 /// ML-DSA post-quantum signature implementation; FIPS 204
@@ -31,6 +34,9 @@ pub use threshold_meta::{
     ThresholdMetadata, decrypt_threshold_meta, disclosure_mode, encrypt_threshold_meta,
     generate_meta_key, read_threshold_params, stamp_disclosure_attrs,
 };
+/// XMSS-SHA2_10/16/20_256 stateful hash-based signature implementation; RFC 8391
+#[cfg(feature = "xmss")]
+pub mod xmss;
 
 ///
 /// Attributes views let you inquire about the Multisig and retrieve data

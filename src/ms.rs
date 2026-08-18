@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+#[cfg(feature = "lamport")]
+use crate::views::lamport;
+#[cfg(feature = "xmss")]
+use crate::views::xmss;
 use crate::{
     AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView, Views,
     error::AttributesError,
@@ -30,20 +34,20 @@ pub const SIG_CODECS: [Codec; 35] = [
     Codec::Es384Msig,
     Codec::Es521Msig,
     Codec::Rs256Msig,
-    Codec::SlhdsaSha2128FMsig,
-    Codec::SlhdsaSha2128SMsig,
-    Codec::SlhdsaSha2192FMsig,
-    Codec::SlhdsaSha2192SMsig,
-    Codec::SlhdsaSha2256FMsig,
-    Codec::SlhdsaSha2256SMsig,
-    Codec::SlhdsaShake128FMsig,
-    Codec::SlhdsaShake128SMsig,
-    Codec::SlhdsaShake192FMsig,
-    Codec::SlhdsaShake192SMsig,
-    Codec::SlhdsaShake256FMsig,
-    Codec::SlhdsaShake256SMsig,
-    Codec::Mldsa65Msig,
-    Codec::Mldsa87Msig,
+    Codec::SlhDsaSha2128FMsig,
+    Codec::SlhDsaSha2128SMsig,
+    Codec::SlhDsaSha2192FMsig,
+    Codec::SlhDsaSha2192SMsig,
+    Codec::SlhDsaSha2256FMsig,
+    Codec::SlhDsaSha2256SMsig,
+    Codec::SlhDsaShake128FMsig,
+    Codec::SlhDsaShake128SMsig,
+    Codec::SlhDsaShake192FMsig,
+    Codec::SlhDsaShake192SMsig,
+    Codec::SlhDsaShake256FMsig,
+    Codec::SlhDsaShake256SMsig,
+    Codec::MlDsa65Msig,
+    Codec::MlDsa87Msig,
     Codec::FnDsa512Msig,
     Codec::FnDsa1024Msig,
     Codec::Mayo1Msig,
@@ -229,6 +233,21 @@ impl Null for Multisig {
     }
 }
 
+impl Multisig {
+    /// Reads the [`AttrId::SigIndex`] attribute, decoding it as a u32 big-endian.
+    /// Used by XMSS stateful signatures to track the consumed leaf index.
+    pub fn sig_index(&self) -> Option<u32> {
+        let bytes = self.attributes.get(&AttrId::SigIndex)?;
+        if bytes.len() == 4 {
+            let mut idx = [0u8; 4];
+            idx.copy_from_slice(bytes);
+            Some(u32::from_be_bytes(idx))
+        } else {
+            None
+        }
+    }
+}
+
 impl fmt::Debug for Multisig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -259,19 +278,19 @@ impl Views for Multisig {
                 Ok(Box::new(nist_p::View::try_from(self)?))
             }
             Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
-            Codec::SlhdsaSha2128FMsig
-            | Codec::SlhdsaSha2128SMsig
-            | Codec::SlhdsaSha2192FMsig
-            | Codec::SlhdsaSha2192SMsig
-            | Codec::SlhdsaSha2256FMsig
-            | Codec::SlhdsaSha2256SMsig
-            | Codec::SlhdsaShake128FMsig
-            | Codec::SlhdsaShake128SMsig
-            | Codec::SlhdsaShake192FMsig
-            | Codec::SlhdsaShake192SMsig
-            | Codec::SlhdsaShake256FMsig
-            | Codec::SlhdsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
-            Codec::Mldsa65Msig | Codec::Mldsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
+            Codec::SlhDsaSha2128FMsig
+            | Codec::SlhDsaSha2128SMsig
+            | Codec::SlhDsaSha2192FMsig
+            | Codec::SlhDsaSha2192SMsig
+            | Codec::SlhDsaSha2256FMsig
+            | Codec::SlhDsaSha2256SMsig
+            | Codec::SlhDsaShake128FMsig
+            | Codec::SlhDsaShake128SMsig
+            | Codec::SlhDsaShake192FMsig
+            | Codec::SlhDsaShake192SMsig
+            | Codec::SlhDsaShake256FMsig
+            | Codec::SlhDsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
+            Codec::MlDsa65Msig | Codec::MlDsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
             Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
                 Ok(Box::new(fn_dsa::View::try_from(self)?))
             }
@@ -285,6 +304,33 @@ impl Views for Multisig {
             | Codec::Bls12381G1Fndsa512Msig
             | Codec::Bls12381G1Mayo1Msig
             | Codec::Bls12381G1Mayo2Msig => Ok(Box::new(ed25519_hybrid::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportSha3256Sig
+            | Codec::LamportSha3384Sig
+            | Codec::LamportSha3512Sig
+            | Codec::LamportSha3256SigShare
+            | Codec::LamportSha3384SigShare
+            | Codec::LamportSha3512SigShare
+            | Codec::LamportSha2256Sig
+            | Codec::LamportSha2384Sig
+            | Codec::LamportSha2512Sig
+            | Codec::LamportSha2256SigShare
+            | Codec::LamportSha2384SigShare
+            | Codec::LamportSha2512SigShare
+            | Codec::LamportBlake2B512Sig
+            | Codec::LamportBlake2S256Sig
+            | Codec::LamportBlake3256Sig
+            | Codec::LamportBlake2B512SigShare
+            | Codec::LamportBlake2S256SigShare
+            | Codec::LamportBlake3256SigShare
+            | Codec::LamportShake128Sig
+            | Codec::LamportShake256Sig
+            | Codec::LamportShake128SigShare
+            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
+            #[cfg(feature = "xmss")]
+            Codec::XmssSha210256Msig | Codec::XmssSha216256Msig | Codec::XmssSha220256Msig => {
+                Ok(Box::new(xmss::View::try_from(self)?))
+            }
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -301,19 +347,19 @@ impl Views for Multisig {
                 Ok(Box::new(nist_p::View::try_from(self)?))
             }
             Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
-            Codec::SlhdsaSha2128FMsig
-            | Codec::SlhdsaSha2128SMsig
-            | Codec::SlhdsaSha2192FMsig
-            | Codec::SlhdsaSha2192SMsig
-            | Codec::SlhdsaSha2256FMsig
-            | Codec::SlhdsaSha2256SMsig
-            | Codec::SlhdsaShake128FMsig
-            | Codec::SlhdsaShake128SMsig
-            | Codec::SlhdsaShake192FMsig
-            | Codec::SlhdsaShake192SMsig
-            | Codec::SlhdsaShake256FMsig
-            | Codec::SlhdsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
-            Codec::Mldsa65Msig | Codec::Mldsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
+            Codec::SlhDsaSha2128FMsig
+            | Codec::SlhDsaSha2128SMsig
+            | Codec::SlhDsaSha2192FMsig
+            | Codec::SlhDsaSha2192SMsig
+            | Codec::SlhDsaSha2256FMsig
+            | Codec::SlhDsaSha2256SMsig
+            | Codec::SlhDsaShake128FMsig
+            | Codec::SlhDsaShake128SMsig
+            | Codec::SlhDsaShake192FMsig
+            | Codec::SlhDsaShake192SMsig
+            | Codec::SlhDsaShake256FMsig
+            | Codec::SlhDsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
+            Codec::MlDsa65Msig | Codec::MlDsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
             Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
                 Ok(Box::new(fn_dsa::View::try_from(self)?))
             }
@@ -327,6 +373,33 @@ impl Views for Multisig {
             | Codec::Bls12381G1Fndsa512Msig
             | Codec::Bls12381G1Mayo1Msig
             | Codec::Bls12381G1Mayo2Msig => Ok(Box::new(ed25519_hybrid::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportSha3256Sig
+            | Codec::LamportSha3384Sig
+            | Codec::LamportSha3512Sig
+            | Codec::LamportSha3256SigShare
+            | Codec::LamportSha3384SigShare
+            | Codec::LamportSha3512SigShare
+            | Codec::LamportSha2256Sig
+            | Codec::LamportSha2384Sig
+            | Codec::LamportSha2512Sig
+            | Codec::LamportSha2256SigShare
+            | Codec::LamportSha2384SigShare
+            | Codec::LamportSha2512SigShare
+            | Codec::LamportBlake2B512Sig
+            | Codec::LamportBlake2S256Sig
+            | Codec::LamportBlake3256Sig
+            | Codec::LamportBlake2B512SigShare
+            | Codec::LamportBlake2S256SigShare
+            | Codec::LamportBlake3256SigShare
+            | Codec::LamportShake128Sig
+            | Codec::LamportShake256Sig
+            | Codec::LamportShake128SigShare
+            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
+            #[cfg(feature = "xmss")]
+            Codec::XmssSha210256Msig | Codec::XmssSha216256Msig | Codec::XmssSha220256Msig => {
+                Ok(Box::new(xmss::View::try_from(self)?))
+            }
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -343,19 +416,19 @@ impl Views for Multisig {
                 Ok(Box::new(nist_p::View::try_from(self)?))
             }
             Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
-            Codec::SlhdsaSha2128FMsig
-            | Codec::SlhdsaSha2128SMsig
-            | Codec::SlhdsaSha2192FMsig
-            | Codec::SlhdsaSha2192SMsig
-            | Codec::SlhdsaSha2256FMsig
-            | Codec::SlhdsaSha2256SMsig
-            | Codec::SlhdsaShake128FMsig
-            | Codec::SlhdsaShake128SMsig
-            | Codec::SlhdsaShake192FMsig
-            | Codec::SlhdsaShake192SMsig
-            | Codec::SlhdsaShake256FMsig
-            | Codec::SlhdsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
-            Codec::Mldsa65Msig | Codec::Mldsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
+            Codec::SlhDsaSha2128FMsig
+            | Codec::SlhDsaSha2128SMsig
+            | Codec::SlhDsaSha2192FMsig
+            | Codec::SlhDsaSha2192SMsig
+            | Codec::SlhDsaSha2256FMsig
+            | Codec::SlhDsaSha2256SMsig
+            | Codec::SlhDsaShake128FMsig
+            | Codec::SlhDsaShake128SMsig
+            | Codec::SlhDsaShake192FMsig
+            | Codec::SlhDsaShake192SMsig
+            | Codec::SlhDsaShake256FMsig
+            | Codec::SlhDsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
+            Codec::MlDsa65Msig | Codec::MlDsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
             Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
                 Ok(Box::new(fn_dsa::View::try_from(self)?))
             }
@@ -369,6 +442,33 @@ impl Views for Multisig {
             | Codec::Bls12381G1Fndsa512Msig
             | Codec::Bls12381G1Mayo1Msig
             | Codec::Bls12381G1Mayo2Msig => Ok(Box::new(ed25519_hybrid::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportSha3256Sig
+            | Codec::LamportSha3384Sig
+            | Codec::LamportSha3512Sig
+            | Codec::LamportSha3256SigShare
+            | Codec::LamportSha3384SigShare
+            | Codec::LamportSha3512SigShare
+            | Codec::LamportSha2256Sig
+            | Codec::LamportSha2384Sig
+            | Codec::LamportSha2512Sig
+            | Codec::LamportSha2256SigShare
+            | Codec::LamportSha2384SigShare
+            | Codec::LamportSha2512SigShare
+            | Codec::LamportBlake2B512Sig
+            | Codec::LamportBlake2S256Sig
+            | Codec::LamportBlake3256Sig
+            | Codec::LamportBlake2B512SigShare
+            | Codec::LamportBlake2S256SigShare
+            | Codec::LamportBlake3256SigShare
+            | Codec::LamportShake128Sig
+            | Codec::LamportShake256Sig
+            | Codec::LamportShake128SigShare
+            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
+            #[cfg(feature = "xmss")]
+            Codec::XmssSha210256Msig | Codec::XmssSha216256Msig | Codec::XmssSha220256Msig => {
+                Ok(Box::new(xmss::View::try_from(self)?))
+            }
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -379,6 +479,29 @@ impl Views for Multisig {
             | Codec::Bls12381G2Msig
             | Codec::Bls12381G1ShareMsig
             | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportSha3256Sig
+            | Codec::LamportSha3256SigShare
+            | Codec::LamportSha3384Sig
+            | Codec::LamportSha3384SigShare
+            | Codec::LamportSha3512Sig
+            | Codec::LamportSha3512SigShare
+            | Codec::LamportSha2256Sig
+            | Codec::LamportSha2256SigShare
+            | Codec::LamportSha2384Sig
+            | Codec::LamportSha2384SigShare
+            | Codec::LamportSha2512Sig
+            | Codec::LamportSha2512SigShare
+            | Codec::LamportBlake2B512Sig
+            | Codec::LamportBlake2B512SigShare
+            | Codec::LamportBlake2S256Sig
+            | Codec::LamportBlake2S256SigShare
+            | Codec::LamportBlake3256Sig
+            | Codec::LamportBlake3256SigShare
+            | Codec::LamportShake128Sig
+            | Codec::LamportShake128SigShare
+            | Codec::LamportShake256Sig
+            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -388,6 +511,29 @@ impl Views for Multisig {
             Codec::Bls12381G1Msig | Codec::Bls12381G2Msig => {
                 Ok(Box::new(bls12381::View::try_from(self)?))
             }
+            #[cfg(feature = "lamport")]
+            Codec::LamportSha3256Sig
+            | Codec::LamportSha3256SigShare
+            | Codec::LamportSha3384Sig
+            | Codec::LamportSha3384SigShare
+            | Codec::LamportSha3512Sig
+            | Codec::LamportSha3512SigShare
+            | Codec::LamportSha2256Sig
+            | Codec::LamportSha2256SigShare
+            | Codec::LamportSha2384Sig
+            | Codec::LamportSha2384SigShare
+            | Codec::LamportSha2512Sig
+            | Codec::LamportSha2512SigShare
+            | Codec::LamportBlake2B512Sig
+            | Codec::LamportBlake2B512SigShare
+            | Codec::LamportBlake2S256Sig
+            | Codec::LamportBlake2S256SigShare
+            | Codec::LamportBlake3256Sig
+            | Codec::LamportBlake3256SigShare
+            | Codec::LamportShake128Sig
+            | Codec::LamportShake128SigShare
+            | Codec::LamportShake256Sig
+            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -723,6 +869,11 @@ impl Builder {
     /// add the threshold data
     pub fn with_threshold_data(self, tdata: &impl AsRef<[u8]>) -> Self {
         self.with_attribute(AttrId::ThresholdData, &tdata.as_ref().to_vec())
+    }
+
+    /// Set the XMSS leaf index for a stateful signature.
+    pub fn with_sig_index(self, index: u32) -> Self {
+        self.with_attribute(AttrId::SigIndex, &index.to_be_bytes().to_vec())
     }
 
     /// Set the disclosure mode for a threshold sig share being built.
