@@ -313,6 +313,9 @@ impl<'a> ThresholdView for View<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::views::Views as _;
+    use lamport_signature_plus::MtVerifyingKey;
+    type MtSha2_256Digest = lamport_signature_plus::LamportFixedDigest<sha2::Sha256>;
 
     #[test]
     fn test_share_codec_roundtrip() {
@@ -333,5 +336,113 @@ mod tests {
         let enc = encode_shares(&blobs);
         assert_eq!(decode_shares(&enc).unwrap(), blobs);
         assert!(decode_shares(&[9, 9]).is_err());
+    }
+
+    /// Build a real 2-of-3 threshold tree with lamport_signature_plus, sign
+    /// with two shares, and run the multi-sig accumulate/combine flow.
+    #[test]
+    fn test_threshold_flow_2_of_3() {
+        let (shares, pk_bytes) = {
+            let (sk, pk) =
+                lamport_signature_plus::generate_mt_keys::<MtSha2_256Digest, _>(1, rand::rng())
+                    .unwrap();
+            let key_shares = sk.split(2, 3, rand::rng()).unwrap();
+            (key_shares, pk.to_bytes())
+        };
+        assert_eq!(shares.len(), 3);
+
+        let msg = b"merkle threshold flow";
+
+        // each participant signs at the next leaf (leaf 0 for all — same leaf
+        // is required for combine)
+        let mut share_ms: Vec<Multisig> = Vec::new();
+        for mut share in shares.into_iter().take(2) {
+            let blob = share.sign(msg).unwrap().to_bytes();
+            share_ms.push(
+                Builder::new(share_codec(Codec::LamportMerkleSha2256Sig).unwrap())
+                    .with_signature_bytes(&blob)
+                    .with_depth(1)
+                    .try_build()
+                    .unwrap(),
+            );
+        }
+
+        // accumulate on the multisig
+        let mut acc = Builder::new(Codec::LamportMerkleSha2256Sig)
+            .with_message_bytes(&msg)
+            .try_build()
+            .unwrap();
+        assert!(acc.depth().is_none());
+        for share_ms in &share_ms {
+            let next = acc.threshold_view().unwrap().add_share(share_ms).unwrap();
+            acc = next;
+        }
+        // depth propagated from the share blobs
+        assert_eq!(acc.depth(), Some(1));
+
+        // shares() roundtrip
+        let recovered = acc.threshold_view().unwrap().shares().unwrap();
+        assert_eq!(recovered.len(), 2);
+        assert_eq!(recovered[0].depth(), Some(1));
+
+        // combine into a full signature
+        let combined = acc.threshold_view().unwrap().combine().unwrap();
+        assert_eq!(combined.codec(), Codec::LamportMerkleSha2256Sig);
+        assert_eq!(combined.depth(), Some(1));
+        assert_eq!(combined.message, msg.to_vec());
+
+        // verify under the tree root
+        let pk = MtVerifyingKey::<MtSha2_256Digest>::from_bytes(&pk_bytes).unwrap();
+        let sig_bytes = combined.data_view().unwrap().sig_bytes().unwrap();
+        let sig = MtSignature::<MtSha2_256Digest>::from_bytes(&sig_bytes).unwrap();
+        pk.verify(&sig, msg).unwrap();
+    }
+
+    #[test]
+    fn test_depth_mismatch_rejected() {
+        let (sk, _pk) =
+            lamport_signature_plus::generate_mt_keys::<MtSha2_256Digest, _>(1, rand::rng())
+                .unwrap();
+        let mut shares = sk.split(2, 3, rand::rng()).unwrap();
+        let mut share = shares.remove(0);
+        let blob = share.sign(b"m").unwrap().to_bytes();
+
+        // share says depth 1; build it as a share multisig claiming depth 2
+        let share_ms = Builder::new(Codec::LamportMerkleSha2256SigShare)
+            .with_signature_bytes(&blob)
+            .with_depth(2)
+            .try_build()
+            .unwrap();
+
+        let acc = Builder::new(Codec::LamportMerkleSha2256Sig)
+            .with_message_bytes(&b"m".to_vec())
+            .with_depth(1)
+            .try_build()
+            .unwrap();
+        // accumulator says 1, share blob says 1, but the share's attr says 2 —
+        // add_share trusts the blob, so mismatch must come from blob vs
+        // accumulator. Tamper the accumulator depth instead.
+        let acc2 = Builder::new(Codec::LamportMerkleSha2256Sig)
+            .with_message_bytes(&b"m".to_vec())
+            .with_depth(2)
+            .try_build()
+            .unwrap();
+        assert!(acc2.threshold_view().unwrap().add_share(&share_ms).is_err());
+        // sanity: the honest accumulator accepts the honest share
+        let _ = acc;
+        let ok = Builder::new(Codec::LamportMerkleSha2256Sig)
+            .with_message_bytes(&b"m".to_vec())
+            .try_build()
+            .unwrap();
+        assert!(ok.threshold_view().unwrap().add_share(&share_ms).is_ok());
+    }
+
+    #[test]
+    fn test_combine_empty_fails() {
+        let acc = Builder::new(Codec::LamportMerkleSha2256Sig)
+            .with_message_bytes(&b"m".to_vec())
+            .try_build()
+            .unwrap();
+        assert!(acc.threshold_view().unwrap().combine().is_err());
     }
 }

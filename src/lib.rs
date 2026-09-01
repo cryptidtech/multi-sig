@@ -154,6 +154,10 @@ pub use views::{
     ThresholdView, Views, decrypt_threshold_meta, encrypt_threshold_meta, generate_meta_key,
 };
 
+/// Merkle-tree Lamport signature view
+#[cfg(feature = "lamport")]
+pub use views::lamport_merkle;
+
 /// Serde serialization
 #[cfg(feature = "serde")]
 pub mod serde;
