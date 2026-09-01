@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-01
+
+### Added
+
+- Merkle-tree Lamport multisig view (`views::lamport_merkle`, behind the default `lamport` feature) wrapping the `lamport_signature_plus` 0.5.0 `Mt*` API: signature-share accumulation in `ThresholdData` and combination via `MtSignature::combine`, for 11 digest variants (SHA3-512/384/256, SHA2-512/384/256, BLAKE2b-512, BLAKE2s-256, BLAKE3-256, SHAKE-128/256) with the 22 new `LamportMerkle*Sig`/`*SigShare` codecs (codes `0x1a94`-`0x1aae`).
+- `AttrId::Depth` attribute (code 11, name `depth`, one raw byte) for merkle-tree signature schemes, stamped on accumulators and combined signatures and cross-checked against the depth byte embedded in the share blobs; mismatches return `AttributesError::DepthMismatch`.
+- `Builder::with_depth(depth)` and `Multisig::depth() -> Option<u8>`.
+- The 11 `LamportMerkle*Sig` codecs added to `SIG_CODECS` (35→46 entries without the XMSS duplicate fix, 47 entries total) and the 11 `LamportMerkle*SigShare` codecs added to `SIG_SHARE_CODECS` (2→13).
+
+### Changed
+
+- Bumped `lamport_signature_plus` from `0.5.0-rc2` to `0.5.0`.
+- Raised `rust-version` from `1.87` to `1.96` (required by `lamport_signature_plus` 0.5.0).
+- `multi-codec` dependency raised to `1.3` (adds the `LamportMerkle*` codecs).
+
 ## [1.2.1] - 2026-08-18
 
 ### Fixed

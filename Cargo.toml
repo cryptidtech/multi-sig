@@ -1,8 +1,8 @@
 [package]
 name = "multi-sig"
-version = "1.2.1"
+version = "1.3.0"
 edition = "2024"
-rust-version = "1.87"
+rust-version = "1.96"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multisig self-describing multicodec implementation for digital signatures"
 repository = "https://github.com/cryptidtech/multi-sig.git"
@@ -21,6 +21,7 @@ serde = []
 lamport = ["dep:lamport_signature_plus", "dep:sha3", "dep:sha2", "dep:blake2", "dep:shake", "dep:blake3"]
 xmss = ["dep:xmss"]
 
+# Local multi-codec 1.3.0 until it is published (remove at release).
 [dependencies]
 ciborium = "0.2"
 chacha20poly1305 = "0.11"
@@ -28,7 +29,7 @@ elliptic-curve = "0.14"
 getrandom = { version = "0.4" }
 # blsful configured per-target below (blst for native, rust for wasm)
 multi-base = { version = "1.0", default-features = false }
-multi-codec = "1.2"
+multi-codec = "1.3"
 multi-trait = { version = "1.0", default-features = false }
 multi-util = "1.1"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
@@ -37,7 +38,7 @@ thiserror = { version = "2.0" }
 unsigned-varint = { version = "0.8", features = ["std"] }
 zeroize = "1"
 # Lamport support (feature-gated, default-enabled)
-lamport_signature_plus = { version = "0.5.0-rc2", optional = true }
+lamport_signature_plus = { version = "0.5.0", optional = true }
 sha3 = { version = "0.12", optional = true }
 sha2 = { version = "0.11", optional = true }
 blake2 = { version = "0.11.0-rc.6", optional = true }
@@ -75,3 +76,7 @@ multiple_crate_versions = { level = "allow", priority = 1 }
 
 [lints.rust]
 unsafe_code = "deny"
+
+# Local multi-codec 1.3.0 until it is published (remove at release).
+[patch.crates-io]
+multi-codec = { path = "../multi-codec" }

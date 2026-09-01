@@ -108,6 +108,15 @@ pub enum AttributesError {
     /// Invalid attribute value
     #[error("Invalid attribute value {0}")]
     InvalidAttributeValue(u8),
+    /// A merkle-tree depth attribute does not match the depth byte embedded in
+    /// the signature wire data.
+    #[error("Depth mismatch: attribute says {expected}, wire data says {found}")]
+    DepthMismatch {
+        /// depth declared by the `depth` attribute
+        expected: u8,
+        /// depth byte embedded in the wire data
+        found: u8,
+    },
 }
 
 /// Shares errors created by this library
