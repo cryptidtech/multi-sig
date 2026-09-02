@@ -31,6 +31,10 @@ pub enum AttrId {
     ThresholdMetaCipher,
     /// XMSS leaf index (u32 big-endian) for stateful signature schemes.
     SigIndex,
+    /// Merkle-tree signature scheme depth (one raw byte; the tree holds
+    /// 2^depth one-time leaves). Cross-checked against the depth byte embedded
+    /// in the signature wire data.
+    Depth,
 }
 
 impl AttrId {
@@ -53,6 +57,7 @@ impl AttrId {
             Self::EncryptedThresholdMeta => "encrypted-threshold-meta",
             Self::ThresholdMetaCipher => "threshold-meta-cipher",
             Self::SigIndex => "sig-index",
+            Self::Depth => "depth",
         }
     }
 }
@@ -79,6 +84,7 @@ impl TryFrom<u8> for AttrId {
             8 => Ok(Self::EncryptedThresholdMeta),
             9 => Ok(Self::ThresholdMetaCipher),
             10 => Ok(Self::SigIndex),
+            11 => Ok(Self::Depth),
             _ => Err(AttributesError::InvalidAttributeValue(c).into()),
         }
     }
@@ -124,6 +130,7 @@ impl TryFrom<&str> for AttrId {
             "encrypted-threshold-meta" => Ok(Self::EncryptedThresholdMeta),
             "threshold-meta-cipher" => Ok(Self::ThresholdMetaCipher),
             "sig-index" => Ok(Self::SigIndex),
+            "depth" => Ok(Self::Depth),
             _ => Err(AttributesError::InvalidAttributeName(s.to_string()).into()),
         }
     }

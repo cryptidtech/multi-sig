@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #[cfg(feature = "lamport")]
 use crate::views::lamport;
+#[cfg(feature = "lamport")]
+use crate::views::lamport_merkle;
 #[cfg(feature = "xmss")]
 use crate::views::xmss;
 use crate::{
@@ -25,6 +27,59 @@ use multi_util::{BaseEncoded, CodecInfo, EncodingInfo, Varbytes, Varuint};
 use std::{collections::BTreeMap, fmt};
 
 /// the list of signature codecs currently supported
+#[cfg(feature = "lamport")]
+pub const SIG_CODECS: [Codec; 47] = [
+    Codec::Bls12381G1Msig,
+    Codec::Bls12381G2Msig,
+    Codec::EddsaMsig,
+    Codec::Es256KMsig,
+    Codec::Es256Msig,
+    Codec::Es384Msig,
+    Codec::Es521Msig,
+    Codec::Rs256Msig,
+    Codec::SlhDsaSha2128FMsig,
+    Codec::SlhDsaSha2128SMsig,
+    Codec::SlhDsaSha2192FMsig,
+    Codec::SlhDsaSha2192SMsig,
+    Codec::SlhDsaSha2256FMsig,
+    Codec::SlhDsaSha2256SMsig,
+    Codec::SlhDsaShake128FMsig,
+    Codec::SlhDsaShake128SMsig,
+    Codec::SlhDsaSha2192FMsig,
+    Codec::SlhDsaShake192FMsig,
+    Codec::SlhDsaShake192SMsig,
+    Codec::SlhDsaShake256FMsig,
+    Codec::SlhDsaShake256SMsig,
+    Codec::MlDsa65Msig,
+    Codec::MlDsa87Msig,
+    Codec::FnDsa512Msig,
+    Codec::FnDsa1024Msig,
+    Codec::Mayo1Msig,
+    Codec::Mayo2Msig,
+    Codec::Mayo3Msig,
+    Codec::Mayo5Msig,
+    Codec::Ed25519Mayo2Msig,
+    Codec::Ed25519Mldsa65Msig,
+    Codec::Ed25519Fndsa512Msig,
+    Codec::Bls12381G1Mldsa65Msig,
+    Codec::Bls12381G1Fndsa512Msig,
+    Codec::Bls12381G1Mayo1Msig,
+    Codec::Bls12381G1Mayo2Msig,
+    Codec::LamportMerkleSha3512Sig,
+    Codec::LamportMerkleSha3384Sig,
+    Codec::LamportMerkleSha3256Sig,
+    Codec::LamportMerkleSha2512Sig,
+    Codec::LamportMerkleSha2384Sig,
+    Codec::LamportMerkleSha2256Sig,
+    Codec::LamportMerkleBlake2B512Sig,
+    Codec::LamportMerkleBlake2S256Sig,
+    Codec::LamportMerkleBlake3256Sig,
+    Codec::LamportMerkleShake128Sig,
+    Codec::LamportMerkleShake256Sig,
+];
+
+/// the list of signature codecs currently supported
+#[cfg(not(feature = "lamport"))]
 pub const SIG_CODECS: [Codec; 35] = [
     Codec::Bls12381G1Msig,
     Codec::Bls12381G2Msig,
@@ -42,6 +97,7 @@ pub const SIG_CODECS: [Codec; 35] = [
     Codec::SlhDsaSha2256SMsig,
     Codec::SlhDsaShake128FMsig,
     Codec::SlhDsaShake128SMsig,
+    Codec::SlhDsaSha2192FMsig,
     Codec::SlhDsaShake192FMsig,
     Codec::SlhDsaShake192SMsig,
     Codec::SlhDsaShake256FMsig,
@@ -64,6 +120,25 @@ pub const SIG_CODECS: [Codec; 35] = [
 ];
 
 /// the list of signature share codecs supported
+#[cfg(feature = "lamport")]
+pub const SIG_SHARE_CODECS: [Codec; 13] = [
+    Codec::Bls12381G1ShareMsig,
+    Codec::Bls12381G2ShareMsig,
+    Codec::LamportMerkleSha3512SigShare,
+    Codec::LamportMerkleSha3384SigShare,
+    Codec::LamportMerkleSha3256SigShare,
+    Codec::LamportMerkleSha2512SigShare,
+    Codec::LamportMerkleSha2384SigShare,
+    Codec::LamportMerkleSha2256SigShare,
+    Codec::LamportMerkleBlake2B512SigShare,
+    Codec::LamportMerkleBlake2S256SigShare,
+    Codec::LamportMerkleBlake3256SigShare,
+    Codec::LamportMerkleShake128SigShare,
+    Codec::LamportMerkleShake256SigShare,
+];
+
+/// the list of signature share codecs supported
+#[cfg(not(feature = "lamport"))]
 pub const SIG_SHARE_CODECS: [Codec; 2] = [
     Codec::Bls12381G1ShareMsig,
     Codec::Bls12381G2ShareMsig, //,
@@ -246,6 +321,17 @@ impl Multisig {
             None
         }
     }
+
+    /// Reads the [`AttrId::Depth`] attribute (one raw byte) for merkle-tree
+    /// signature schemes. Returns `None` when absent or malformed.
+    pub fn depth(&self) -> Option<u8> {
+        let bytes = self.attributes.get(&AttrId::Depth)?;
+        if bytes.len() == 1 {
+            Some(bytes[0])
+        } else {
+            None
+        }
+    }
 }
 
 impl fmt::Debug for Multisig {
@@ -327,6 +413,31 @@ impl Views for Multisig {
             | Codec::LamportShake256Sig
             | Codec::LamportShake128SigShare
             | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportMerkleSha3512Sig
+            | Codec::LamportMerkleSha3512SigShare
+            | Codec::LamportMerkleSha3384Sig
+            | Codec::LamportMerkleSha3384SigShare
+            | Codec::LamportMerkleSha3256Sig
+            | Codec::LamportMerkleSha3256SigShare
+            | Codec::LamportMerkleSha2512Sig
+            | Codec::LamportMerkleSha2512SigShare
+            | Codec::LamportMerkleSha2384Sig
+            | Codec::LamportMerkleSha2384SigShare
+            | Codec::LamportMerkleSha2256Sig
+            | Codec::LamportMerkleSha2256SigShare
+            | Codec::LamportMerkleBlake2B512Sig
+            | Codec::LamportMerkleBlake2B512SigShare
+            | Codec::LamportMerkleBlake2S256Sig
+            | Codec::LamportMerkleBlake2S256SigShare
+            | Codec::LamportMerkleBlake3256Sig
+            | Codec::LamportMerkleBlake3256SigShare
+            | Codec::LamportMerkleShake128Sig
+            | Codec::LamportMerkleShake128SigShare
+            | Codec::LamportMerkleShake256Sig
+            | Codec::LamportMerkleShake256SigShare => {
+                Ok(Box::new(lamport_merkle::View::try_from(self)?))
+            }
             #[cfg(feature = "xmss")]
             Codec::XmssSha210256Msig | Codec::XmssSha216256Msig | Codec::XmssSha220256Msig => {
                 Ok(Box::new(xmss::View::try_from(self)?))
@@ -396,6 +507,31 @@ impl Views for Multisig {
             | Codec::LamportShake256Sig
             | Codec::LamportShake128SigShare
             | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportMerkleSha3512Sig
+            | Codec::LamportMerkleSha3512SigShare
+            | Codec::LamportMerkleSha3384Sig
+            | Codec::LamportMerkleSha3384SigShare
+            | Codec::LamportMerkleSha3256Sig
+            | Codec::LamportMerkleSha3256SigShare
+            | Codec::LamportMerkleSha2512Sig
+            | Codec::LamportMerkleSha2512SigShare
+            | Codec::LamportMerkleSha2384Sig
+            | Codec::LamportMerkleSha2384SigShare
+            | Codec::LamportMerkleSha2256Sig
+            | Codec::LamportMerkleSha2256SigShare
+            | Codec::LamportMerkleBlake2B512Sig
+            | Codec::LamportMerkleBlake2B512SigShare
+            | Codec::LamportMerkleBlake2S256Sig
+            | Codec::LamportMerkleBlake2S256SigShare
+            | Codec::LamportMerkleBlake3256Sig
+            | Codec::LamportMerkleBlake3256SigShare
+            | Codec::LamportMerkleShake128Sig
+            | Codec::LamportMerkleShake128SigShare
+            | Codec::LamportMerkleShake256Sig
+            | Codec::LamportMerkleShake256SigShare => {
+                Ok(Box::new(lamport_merkle::View::try_from(self)?))
+            }
             #[cfg(feature = "xmss")]
             Codec::XmssSha210256Msig | Codec::XmssSha216256Msig | Codec::XmssSha220256Msig => {
                 Ok(Box::new(xmss::View::try_from(self)?))
@@ -465,6 +601,31 @@ impl Views for Multisig {
             | Codec::LamportShake256Sig
             | Codec::LamportShake128SigShare
             | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportMerkleSha3512Sig
+            | Codec::LamportMerkleSha3512SigShare
+            | Codec::LamportMerkleSha3384Sig
+            | Codec::LamportMerkleSha3384SigShare
+            | Codec::LamportMerkleSha3256Sig
+            | Codec::LamportMerkleSha3256SigShare
+            | Codec::LamportMerkleSha2512Sig
+            | Codec::LamportMerkleSha2512SigShare
+            | Codec::LamportMerkleSha2384Sig
+            | Codec::LamportMerkleSha2384SigShare
+            | Codec::LamportMerkleSha2256Sig
+            | Codec::LamportMerkleSha2256SigShare
+            | Codec::LamportMerkleBlake2B512Sig
+            | Codec::LamportMerkleBlake2B512SigShare
+            | Codec::LamportMerkleBlake2S256Sig
+            | Codec::LamportMerkleBlake2S256SigShare
+            | Codec::LamportMerkleBlake3256Sig
+            | Codec::LamportMerkleBlake3256SigShare
+            | Codec::LamportMerkleShake128Sig
+            | Codec::LamportMerkleShake128SigShare
+            | Codec::LamportMerkleShake256Sig
+            | Codec::LamportMerkleShake256SigShare => {
+                Ok(Box::new(lamport_merkle::View::try_from(self)?))
+            }
             #[cfg(feature = "xmss")]
             Codec::XmssSha210256Msig | Codec::XmssSha216256Msig | Codec::XmssSha220256Msig => {
                 Ok(Box::new(xmss::View::try_from(self)?))
@@ -502,6 +663,31 @@ impl Views for Multisig {
             | Codec::LamportShake128SigShare
             | Codec::LamportShake256Sig
             | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportMerkleSha3512Sig
+            | Codec::LamportMerkleSha3512SigShare
+            | Codec::LamportMerkleSha3384Sig
+            | Codec::LamportMerkleSha3384SigShare
+            | Codec::LamportMerkleSha3256Sig
+            | Codec::LamportMerkleSha3256SigShare
+            | Codec::LamportMerkleSha2512Sig
+            | Codec::LamportMerkleSha2512SigShare
+            | Codec::LamportMerkleSha2384Sig
+            | Codec::LamportMerkleSha2384SigShare
+            | Codec::LamportMerkleSha2256Sig
+            | Codec::LamportMerkleSha2256SigShare
+            | Codec::LamportMerkleBlake2B512Sig
+            | Codec::LamportMerkleBlake2B512SigShare
+            | Codec::LamportMerkleBlake2S256Sig
+            | Codec::LamportMerkleBlake2S256SigShare
+            | Codec::LamportMerkleBlake3256Sig
+            | Codec::LamportMerkleBlake3256SigShare
+            | Codec::LamportMerkleShake128Sig
+            | Codec::LamportMerkleShake128SigShare
+            | Codec::LamportMerkleShake256Sig
+            | Codec::LamportMerkleShake256SigShare => {
+                Ok(Box::new(lamport_merkle::View::try_from(self)?))
+            }
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -534,6 +720,31 @@ impl Views for Multisig {
             | Codec::LamportShake128SigShare
             | Codec::LamportShake256Sig
             | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
+            #[cfg(feature = "lamport")]
+            Codec::LamportMerkleSha3512Sig
+            | Codec::LamportMerkleSha3512SigShare
+            | Codec::LamportMerkleSha3384Sig
+            | Codec::LamportMerkleSha3384SigShare
+            | Codec::LamportMerkleSha3256Sig
+            | Codec::LamportMerkleSha3256SigShare
+            | Codec::LamportMerkleSha2512Sig
+            | Codec::LamportMerkleSha2512SigShare
+            | Codec::LamportMerkleSha2384Sig
+            | Codec::LamportMerkleSha2384SigShare
+            | Codec::LamportMerkleSha2256Sig
+            | Codec::LamportMerkleSha2256SigShare
+            | Codec::LamportMerkleBlake2B512Sig
+            | Codec::LamportMerkleBlake2B512SigShare
+            | Codec::LamportMerkleBlake2S256Sig
+            | Codec::LamportMerkleBlake2S256SigShare
+            | Codec::LamportMerkleBlake3256Sig
+            | Codec::LamportMerkleBlake3256SigShare
+            | Codec::LamportMerkleShake128Sig
+            | Codec::LamportMerkleShake128SigShare
+            | Codec::LamportMerkleShake256Sig
+            | Codec::LamportMerkleShake256SigShare => {
+                Ok(Box::new(lamport_merkle::View::try_from(self)?))
+            }
             _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -874,6 +1085,11 @@ impl Builder {
     /// Set the XMSS leaf index for a stateful signature.
     pub fn with_sig_index(self, index: u32) -> Self {
         self.with_attribute(AttrId::SigIndex, &index.to_be_bytes().to_vec())
+    }
+
+    /// Set the merkle-tree depth (one raw byte, 1..=3).
+    pub fn with_depth(self, depth: u8) -> Self {
+        self.with_attribute(AttrId::Depth, &vec![depth])
     }
 
     /// Set the disclosure mode for a threshold sig share being built.

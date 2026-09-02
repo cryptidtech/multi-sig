@@ -15,6 +15,9 @@ pub mod fn_dsa;
 /// Lamport one-time hash-based signature implementation
 #[cfg(feature = "lamport")]
 pub mod lamport;
+/// Merkle-tree Lamport signature implementation
+#[cfg(feature = "lamport")]
+pub mod lamport_merkle;
 /// MAYO post-quantum multivariate signature implementation
 pub mod mayo;
 /// ML-DSA post-quantum signature implementation; FIPS 204
