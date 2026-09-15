@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.4.0] - 2026-09-03
+
+### Added
+
+- The three XMSS msig codecs (`XmssSha210256Msig`, `XmssSha216256Msig`, `XmssSha220256Msig`) and the eleven one-time Lamport sig codecs (SHA3-512/384/256, SHA2-512/384/256, BLAKE2b-512, BLAKE2s-256, BLAKE3-256, SHAKE-128/256) added to `SIG_CODECS`. All fourteen codecs were dispatched by the view tables but absent from the list.
+- `SIG_CODECS` now has 60 entries with the `lamport` feature (up from 47) and 35 without (up from 34).
+- Invariant tests `test_sig_codecs_unique` (no duplicate codecs in the list) and `test_sig_codecs_dispatch` (every listed codec dispatches to a data view).
+
+### Fixed
+
+- Removed the duplicate `SlhDsaSha2192FMsig` row from both `SIG_CODECS` variants (the codec was listed twice in each list).
+
 ## [1.3.0] - 2026-09-01
 
 ### Added

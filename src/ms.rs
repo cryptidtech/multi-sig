@@ -28,7 +28,7 @@ use std::{collections::BTreeMap, fmt};
 
 /// the list of signature codecs currently supported
 #[cfg(feature = "lamport")]
-pub const SIG_CODECS: [Codec; 47] = [
+pub const SIG_CODECS: [Codec; 60] = [
     Codec::Bls12381G1Msig,
     Codec::Bls12381G2Msig,
     Codec::EddsaMsig,
@@ -45,7 +45,6 @@ pub const SIG_CODECS: [Codec; 47] = [
     Codec::SlhDsaSha2256SMsig,
     Codec::SlhDsaShake128FMsig,
     Codec::SlhDsaShake128SMsig,
-    Codec::SlhDsaSha2192FMsig,
     Codec::SlhDsaShake192FMsig,
     Codec::SlhDsaShake192SMsig,
     Codec::SlhDsaShake256FMsig,
@@ -76,6 +75,34 @@ pub const SIG_CODECS: [Codec; 47] = [
     Codec::LamportMerkleBlake3256Sig,
     Codec::LamportMerkleShake128Sig,
     Codec::LamportMerkleShake256Sig,
+    #[cfg(feature = "xmss")]
+    Codec::XmssSha210256Msig,
+    #[cfg(feature = "xmss")]
+    Codec::XmssSha216256Msig,
+    #[cfg(feature = "xmss")]
+    Codec::XmssSha220256Msig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportSha3512Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportSha3384Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportSha3256Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportSha2512Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportSha2384Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportSha2256Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportBlake2B512Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportBlake2S256Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportBlake3256Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportShake128Sig,
+    #[cfg(feature = "lamport")]
+    Codec::LamportShake256Sig,
 ];
 
 /// the list of signature codecs currently supported
@@ -97,7 +124,6 @@ pub const SIG_CODECS: [Codec; 35] = [
     Codec::SlhDsaSha2256SMsig,
     Codec::SlhDsaShake128FMsig,
     Codec::SlhDsaShake128SMsig,
-    Codec::SlhDsaSha2192FMsig,
     Codec::SlhDsaShake192FMsig,
     Codec::SlhDsaShake192SMsig,
     Codec::SlhDsaShake256FMsig,
@@ -358,7 +384,7 @@ impl Views for Multisig {
             | Codec::Bls12381G2Msig
             | Codec::Bls12381G1ShareMsig
             | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
-            Codec::EddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
+            Codec::EddsaMsig | Codec::XeddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Es256KMsig => Ok(Box::new(secp256k1::View::try_from(self)?)),
             Codec::Es256Msig | Codec::Es384Msig | Codec::Es521Msig => {
                 Ok(Box::new(nist_p::View::try_from(self)?))
@@ -452,7 +478,7 @@ impl Views for Multisig {
             | Codec::Bls12381G2Msig
             | Codec::Bls12381G1ShareMsig
             | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
-            Codec::EddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
+            Codec::EddsaMsig | Codec::XeddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Es256KMsig => Ok(Box::new(secp256k1::View::try_from(self)?)),
             Codec::Es256Msig | Codec::Es384Msig | Codec::Es521Msig => {
                 Ok(Box::new(nist_p::View::try_from(self)?))
@@ -546,7 +572,7 @@ impl Views for Multisig {
             | Codec::Bls12381G2Msig
             | Codec::Bls12381G1ShareMsig
             | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
-            Codec::EddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
+            Codec::EddsaMsig | Codec::XeddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Es256KMsig => Ok(Box::new(secp256k1::View::try_from(self)?)),
             Codec::Es256Msig | Codec::Es384Msig | Codec::Es521Msig => {
                 Ok(Box::new(nist_p::View::try_from(self)?))
@@ -1183,6 +1209,36 @@ mod tests {
         let s = ms1.to_string();
         let ms2 = EncodedMultisig::try_from(s.as_str()).unwrap();
         assert_eq!(ms1, ms2);
+    }
+
+    #[test]
+    fn test_sig_codecs_unique() {
+        let mut seen = std::collections::BTreeSet::new();
+        for codec in SIG_CODECS {
+            assert!(
+                seen.insert(codec),
+                "duplicate codec in SIG_CODECS: {codec:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_sig_codecs_dispatch() {
+        for codec in SIG_CODECS {
+            let ms = Builder::new(codec)
+                .with_signature_bytes(&[0u8; 64])
+                .try_build()
+                .unwrap();
+            // Every listed codec must produce a working sign-data view. A
+            // codec in SIG_CODECS that fails to dispatch here has drifted
+            // from the view dispatch tables.
+            let result = ms.data_view();
+            assert!(
+                result.is_ok(),
+                "SIG_CODECS entry {codec:?} does not dispatch to a data view (error kind {:?})",
+                result.err().map(|e| e.to_string())
+            );
+        }
     }
 
     #[test]
