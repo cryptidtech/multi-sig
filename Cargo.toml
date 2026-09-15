@@ -29,7 +29,7 @@ elliptic-curve = "0.14"
 getrandom = { version = "0.4" }
 # blsful configured per-target below (blst for native, rust for wasm)
 multi-base = { version = "1.0", default-features = false }
-multi-codec = "1.4"
+multi-codec = "1.5"
 multi-trait = { version = "1.0", default-features = false }
 multi-util = "1.1"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
@@ -77,6 +77,3 @@ multiple_crate_versions = { level = "allow", priority = 1 }
 
 [lints.rust]
 unsafe_code = "deny"
-
-[patch.crates-io]
-multi-codec = { path = "../multi-codec" }
