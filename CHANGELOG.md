@@ -7,6 +7,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-07
+
+### Added
+
+- `ViewBuilder` (`views::builder`): builder-pattern view creation with a fluent kind selector (`.attr()`, `.data()`, `.conv()`, `.threshold_attr()`, `.threshold()`, `.disclosure()`) and a `.build()` terminal, re-exported at the crate root and in the prelude. Standard codecs dispatch to the built-in views. Custom signature schemes (a codec outside `SIG_CODECS`, constructed through the existing public `Builder` setters) dispatch to caller-supplied local-codec factories on fallthrough, per issue #3 and cryptidtech/multi-key#6. Factories share the multi-key factory contract: HRTB, `Send + Sync + 'static`, last registration wins, and built-in views always win.
+
+### Changed
+
+- Version bumped from `1.4.0` to `1.5.0` (minor: new feature and deprecations, no removals). The view dispatch tables moved from `impl Views for Multisig` into the crate-internal `views::dispatch` functions shared by the shim and the new builder. Dispatch behavior is unchanged.
+
+### Deprecated
+
+- The `Views` extension trait and `impl Views for Multisig`. Source-compatible in this release. Use `ViewBuilder` instead. Both will be removed in the next major release. Note: `multi_key::Views` is a different, unrelated trait in the companion crate.
+
 ## [1.4.0] - 2026-09-03
 
 ### Added
@@ -228,4 +242,5 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added the `types.rs` module with type-safe wrappers.
 - Added a comprehensive test suite for edge cases, proptests, and security.
 - Initial published release on crates.io as `multi-sig`.
+[1.5.0]: https://github.com/cryptidtech/multi-sig/compare/v1.4.0...v1.5.0
 [1.2.0]: https://github.com/cryptidtech/multi-sig/compare/v1.1.0...v1.2.0
