@@ -4,6 +4,8 @@ use multi_codec::Codec;
 
 /// BLS12 381 G1/G2 signature implementation
 pub mod bls12381;
+/// Crate-internal per-codec view dispatch shared by view entry points
+pub(crate) mod dispatch;
 /// Edwards curve 25519 signature implementation
 pub mod ed25519;
 /// Generic Ed25519 hybrid signature view (codec-agnostic holder)
