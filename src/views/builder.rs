@@ -76,9 +76,40 @@
 //! lifetime-parameterized helper function keeps closure inference simple
 //! for that case; see the unit tests for the pattern.
 //!
+//! # Custom signature schemes
+//!
+//! A custom scheme is a signature scheme this crate does not standardize
+//! yet, identified by a codec outside [`SIG_CODECS`](crate::SIG_CODECS).
+//! Build its [`Multisig`] with the existing public [`Builder`](crate::Builder)
+//! API alone: [`Builder::new`](crate::Builder::new) accepts any
+//! `multi_codec::Codec`, and
+//! [`Builder::with_signature_bytes`](crate::Builder::with_signature_bytes),
+//! [`Builder::with_payload_encoding`](crate::Builder::with_payload_encoding),
+//! and [`Builder::with_scheme`](crate::Builder::with_scheme) store their
+//! attributes generically. No dedicated custom-codec setters exist, and
+//! none are needed. The wire encoder carries arbitrary attributes, so the
+//! built `Multisig` roundtrips through encode and decode unchanged. Views
+//! for the custom scheme come from `with_local_codec` factories on
+//! built-in fallthrough.
+//!
 //! The demonstration slot for a custom scheme is [`Codec::Identity`]
-//! (codec code 0), which no built-in dispatch table covers. Schemes that
-//! share a slot disambiguate through attributes inside the factory.
+//! (codec code 0), which no built-in dispatch table covers and which the
+//! companion `multi-key` crate uses for custom protocol keys. The
+//! integration tests in `tests/custom_codec_tests.rs` exercise the flow
+//! end to end, including the wire roundtrip.
+//!
+//! # Custom schemes that share a codec slot
+//!
+//! Two custom schemes may share one unregistered codec slot. Their views
+//! disambiguate inside the factory: the factory branches on the
+//! [`AttrId::Scheme`](crate::AttrId::Scheme) attribute value, which
+//! [`Builder::with_scheme`](crate::Builder::with_scheme) stores as a
+//! varuint. This mirrors the multi-key convention of branching on the
+//! algorithm name for custom protocol keys that share `Codec::Identity`.
+//! The factory reads the attribute from the public
+//! [`Multisig::attributes`](crate::Multisig::attributes) field. An unset
+//! `Scheme` attribute yields `None` inside the factory; the factory then
+//! chooses its own default or returns an error.
 //!
 //! # Cross-crate alignment
 //!
@@ -245,6 +276,14 @@ impl ViewKind for DisclosureKind {
 ///
 /// Dispatch order: built-in view first, local factory second (on
 /// `AttributesError::UnsupportedCodec` fallthrough only), error last.
+///
+/// For a custom signature scheme (a codec outside
+/// [`SIG_CODECS`](crate::SIG_CODECS)), construct the [`Multisig`] with the
+/// existing public [`Builder`](crate::Builder) setters and build its views
+/// with `with_local_codec` factories on fallthrough. Schemes that share a
+/// codec slot disambiguate by branching on the
+/// [`AttrId::Scheme`](crate::AttrId::Scheme) attribute inside the factory.
+/// See the module documentation for the convention.
 pub struct ViewBuilder<'ms, K: ViewKind> {
     ms: &'ms Multisig,
     kind: PhantomData<K>,
