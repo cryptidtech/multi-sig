@@ -154,6 +154,13 @@ pub use views::{
     ThresholdView, Views, decrypt_threshold_meta, encrypt_threshold_meta, generate_meta_key,
 };
 
+/// Builder-pattern view creation
+pub use views::builder::{
+    AttrKind, ConvKind, DataKind, DisclosureKind, LocalAttrFn, LocalConvFn, LocalDataFn,
+    LocalDisclosureFn, LocalThresholdAttrFn, LocalThresholdFn, ThresholdAttrKind, ThresholdKind,
+    Unselected, ViewBuilder, ViewKind,
+};
+
 /// Merkle-tree Lamport signature view
 #[cfg(feature = "lamport")]
 pub use views::lamport_merkle;
