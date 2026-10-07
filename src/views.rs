@@ -1,9 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
+//! Views over a [`Multisig`](crate::Multisig): abstract, algorithm-specific
+//! interfaces over the attributes of a signature. The per-codec modules
+//! implement the six view traits. The
+//! [`threshold_meta`](crate::views::threshold_meta) module holds the
+//! disclosure modes and the encrypted threshold metadata helpers.
+//!
+//! Construct views with
+//! [`ViewBuilder`](crate::views::builder::ViewBuilder): a fluent kind
+//! selector plus optional local-codec factories for custom signature
+//! schemes. The deprecated [`Views`] trait delegates to the same internal
+//! dispatch core the builder uses.
 use crate::{Error, Multisig};
 use multi_codec::Codec;
 
 /// BLS12 381 G1/G2 signature implementation
 pub mod bls12381;
+/// Builder-pattern construction of the view types
+pub mod builder;
+/// Crate-internal per-codec view dispatch shared by view entry points
+pub(crate) mod dispatch;
 /// Edwards curve 25519 signature implementation
 pub mod ed25519;
 /// Generic Ed25519 hybrid signature view (codec-agnostic holder)
@@ -120,6 +135,17 @@ pub trait ThresholdDisclosureView {
 }
 
 /// trait for getting the other views
+///
+/// Deprecated: construct views with [`ViewBuilder`](builder::ViewBuilder)
+/// instead. This trait and its impl for `Multisig` remain as a
+/// source-compatible delegating shim.
+///
+/// Note: `multi_key::Views` is a different, unrelated trait; this
+/// deprecation does not affect it.
+#[deprecated(
+    since = "1.5.0",
+    note = "use ViewBuilder; this trait will be removed in 2.0.0. multi_key::Views is a different, unrelated trait"
+)]
 pub trait Views {
     /// Provide a read-only view to access the signature attributes
     fn attr_view<'a>(&'a self) -> Result<Box<dyn AttrView + 'a>, Error>;

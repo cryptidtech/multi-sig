@@ -14,13 +14,16 @@
 
 use crate::{
     AttrId, AttrView, Builder, ConvView, DataView, Error, Multisig, ThresholdAttrView,
-    ThresholdView, Views,
+    ThresholdView,
     error::{AttributesError, SharesError},
-    views::ThresholdDisclosure,
-    views::lamport::{
-        Blake2b512Digest, Blake2s256Digest, Blake3_256Digest, Sha2_256Digest, Sha2_384Digest,
-        Sha2_512Digest, Sha3_256Digest, Sha3_384Digest, Sha3_512Digest, Shake128Digest,
-        Shake256Digest,
+    views::{
+        ThresholdDisclosure,
+        dispatch::dispatch_data_view,
+        lamport::{
+            Blake2b512Digest, Blake2s256Digest, Blake3_256Digest, Sha2_256Digest, Sha2_384Digest,
+            Sha2_512Digest, Sha3_256Digest, Sha3_384Digest, Sha3_512Digest, Shake128Digest,
+            Shake256Digest,
+        },
     },
 };
 use lamport_signature_plus::{LamportDigest, MtSignature, MtSignatureShare};
@@ -266,7 +269,7 @@ impl<'a> ThresholdView for View<'a> {
         if share.codec() != share_codec {
             return Err(SharesError::ShareTypeMismatch.into());
         }
-        let blob = share.data_view()?.sig_bytes()?;
+        let blob = dispatch_data_view(share)?.sig_bytes()?;
         let blobs = accumulated(self.ms)?;
         let expected = accumulator_depth(self.ms, &blobs)?;
         let depth = check_share_depth(expected, &blob)?;
@@ -313,7 +316,7 @@ impl<'a> ThresholdView for View<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::views::Views as _;
+    use crate::ViewBuilder;
     use lamport_signature_plus::MtVerifyingKey;
     type MtSha2_256Digest = lamport_signature_plus::LamportFixedDigest<sha2::Sha256>;
 
@@ -374,26 +377,46 @@ mod tests {
             .unwrap();
         assert!(acc.depth().is_none());
         for share_ms in &share_ms {
-            let next = acc.threshold_view().unwrap().add_share(share_ms).unwrap();
+            let next = ViewBuilder::new(&acc)
+                .threshold()
+                .build()
+                .unwrap()
+                .add_share(share_ms)
+                .unwrap();
             acc = next;
         }
         // depth propagated from the share blobs
         assert_eq!(acc.depth(), Some(1));
 
         // shares() roundtrip
-        let recovered = acc.threshold_view().unwrap().shares().unwrap();
+        let recovered = ViewBuilder::new(&acc)
+            .threshold()
+            .build()
+            .unwrap()
+            .shares()
+            .unwrap();
         assert_eq!(recovered.len(), 2);
         assert_eq!(recovered[0].depth(), Some(1));
 
         // combine into a full signature
-        let combined = acc.threshold_view().unwrap().combine().unwrap();
+        let combined = ViewBuilder::new(&acc)
+            .threshold()
+            .build()
+            .unwrap()
+            .combine()
+            .unwrap();
         assert_eq!(combined.codec(), Codec::LamportMerkleSha2256Sig);
         assert_eq!(combined.depth(), Some(1));
         assert_eq!(combined.message, msg.to_vec());
 
         // verify under the tree root
         let pk = MtVerifyingKey::<MtSha2_256Digest>::from_bytes(&pk_bytes).unwrap();
-        let sig_bytes = combined.data_view().unwrap().sig_bytes().unwrap();
+        let sig_bytes = ViewBuilder::new(&combined)
+            .data()
+            .build()
+            .unwrap()
+            .sig_bytes()
+            .unwrap();
         let sig = MtSignature::<MtSha2_256Digest>::from_bytes(&sig_bytes).unwrap();
         pk.verify(&sig, msg).unwrap();
     }
@@ -427,14 +450,28 @@ mod tests {
             .with_depth(2)
             .try_build()
             .unwrap();
-        assert!(acc2.threshold_view().unwrap().add_share(&share_ms).is_err());
+        assert!(
+            ViewBuilder::new(&acc2)
+                .threshold()
+                .build()
+                .unwrap()
+                .add_share(&share_ms)
+                .is_err()
+        );
         // sanity: the honest accumulator accepts the honest share
         let _ = acc;
         let ok = Builder::new(Codec::LamportMerkleSha2256Sig)
             .with_message_bytes(&b"m".to_vec())
             .try_build()
             .unwrap();
-        assert!(ok.threshold_view().unwrap().add_share(&share_ms).is_ok());
+        assert!(
+            ViewBuilder::new(&ok)
+                .threshold()
+                .build()
+                .unwrap()
+                .add_share(&share_ms)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -443,6 +480,13 @@ mod tests {
             .with_message_bytes(&b"m".to_vec())
             .try_build()
             .unwrap();
-        assert!(acc.threshold_view().unwrap().combine().is_err());
+        assert!(
+            ViewBuilder::new(&acc)
+                .threshold()
+                .build()
+                .unwrap()
+                .combine()
+                .is_err()
+        );
     }
 }

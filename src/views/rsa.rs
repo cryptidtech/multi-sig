@@ -2,8 +2,9 @@
 //! RSA-SHA256 multisig view.
 
 use crate::{
-    AttrId, AttrView, ConvView, DataView, Error, Multisig, Views,
+    AttrId, AttrView, ConvView, DataView, Error, Multisig,
     error::{AttributesError, ConversionsError},
+    views::dispatch::dispatch_data_view,
 };
 use multi_codec::Codec;
 
@@ -50,7 +51,7 @@ impl<'a> DataView for View<'a> {
 
 impl<'a> ConvView for View<'a> {
     fn to_ssh_signature(&self) -> Result<ssh_key::Signature, Error> {
-        let dv = self.ms.data_view()?;
+        let dv = dispatch_data_view(self.ms)?;
         let sig_bytes = dv.sig_bytes()?;
         Ok(ssh_key::Signature::new(
             ssh_key::Algorithm::Other(

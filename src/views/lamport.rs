@@ -12,9 +12,9 @@
 
 use crate::{
     AttrId, AttrView, Builder, ConvView, DataView, Error, Multisig, ThresholdAttrView,
-    ThresholdView, Views,
+    ThresholdView,
     error::{AttributesError, SharesError},
-    views::ThresholdDisclosure,
+    views::{ThresholdDisclosure, dispatch::dispatch_data_view},
 };
 use blake2::{Blake2b512, Blake2s256};
 use lamport_signature_plus::{
@@ -245,7 +245,7 @@ impl<'a> ThresholdView for View<'a> {
     /// Add a Lamport signature share to the accumulator.
     fn add_share(&self, share: &Multisig) -> Result<Multisig, Error> {
         share_codec(self.ms.codec)?;
-        let blob = share.data_view()?.sig_bytes()?;
+        let blob = dispatch_data_view(share)?.sig_bytes()?;
         let mut blobs = accumulated(self.ms)?;
         blobs.push(blob);
         Builder::new(self.ms.codec)

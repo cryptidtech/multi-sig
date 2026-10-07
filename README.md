@@ -126,6 +126,85 @@ Each Multisig carries a set of attributes identified by a `u8` code:
 
 To provide an abstract interface to digital signatures of all schemes, this crate gives "views" on the Multisig data. These are read-only or copy-on-write abstract interfaces with implementations for different supporting signature protocols.
 
+### Creating Views
+
+Create views through the builder-pattern `multi_sig::ViewBuilder` (re-exported at the crate root and in the prelude). Select a view kind fluently, then build:
+
+```rust
+use multi_sig::{Builder, ViewBuilder};
+use multi_codec::Codec;
+
+let sig_data = vec![0u8; 64];
+let ms = Builder::new(Codec::EddsaMsig)
+    .with_signature_bytes(&sig_data)
+    .try_build()
+    .unwrap();
+
+// a data view reads the signature bytes
+let data = ViewBuilder::new(&ms).data().build().unwrap();
+assert_eq!(data.sig_bytes().unwrap(), sig_data);
+
+// an attributes view reads the payload encoding and the scheme
+let attrs = ViewBuilder::new(&ms).attr().build().unwrap();
+assert_eq!(attrs.scheme().unwrap(), 0);
+```
+
+The six kinds are `attr`, `data`, `conv`, `threshold_attr`, `threshold`, and `disclosure`. Select each with `.attr()`, `.data()`, `.conv()`, `.threshold_attr()`, `.threshold()`, or `.disclosure()`. A view borrows its Multisig, so keep the Multisig alive while the view is in use. Built-in codecs dispatch through the crate-internal `views::dispatch` core. A built-in view is identical to the view the deprecated `Views` trait method returns for that codec.
+
+`ViewBuilder` is `Send` + `Sync` when its registered factories are. The view trait objects it returns carry no `Send`/`Sync` supertrait, so they cannot be shared across threads at the type level.
+
+### Custom Signature Schemes
+
+A custom scheme is a signature scheme this crate does not standardize yet. It carries a codec outside `SIG_CODECS`. The convention uses the `Codec::Identity` codec slot (code 0), which no built-in dispatch table covers. Construct the `Multisig` with the existing public `Builder` setters. `Builder::new` accepts any codec. `with_signature_bytes`, `with_payload_encoding`, and `with_scheme` store their attributes generically. A custom scheme has no built-in views, so `ViewBuilder` dispatches it to caller-supplied local-codec factories registered with `with_local_codec`:
+
+```rust
+use multi_sig::{AttrId, AttrView, Builder, Error, Multisig, ViewBuilder};
+use multi_codec::Codec;
+use multi_util::Varuint;
+
+// a custom scheme uses the Codec::Identity slot. The public Builder
+// setters store its attributes generically
+let ms = Builder::new(Codec::Identity)
+    .with_signature_bytes(b"my-custom-signature".as_slice())
+    .with_scheme(0x2A)
+    .try_build()
+    .unwrap();
+
+struct CustomAttrsView {
+    scheme: u8,
+}
+
+impl AttrView for CustomAttrsView {
+    fn payload_encoding(&self) -> Result<Codec, Error> {
+        Ok(Codec::Identity)
+    }
+    fn scheme(&self) -> Result<u8, Error> {
+        Ok(self.scheme)
+    }
+}
+
+// the factory reads the AttrId::Scheme attribute (stored as a varuint)
+// and serves its own scheme. Schemes that share the Identity codec slot
+// branch on this attribute inside the factory.
+let attrs = ViewBuilder::new(&ms)
+    .attr()
+    .with_local_codec(Codec::Identity, Box::new(|ms: &Multisig| {
+        let scheme = ms
+            .attributes
+            .get(&AttrId::Scheme)
+            .and_then(|bytes| Varuint::<u8>::try_from(bytes.as_slice()).ok())
+            .map(|decoded| *decoded)
+            .unwrap_or(0);
+        let view: Box<dyn AttrView> = Box::new(CustomAttrsView { scheme });
+        Ok(view)
+    }))
+    .build()
+    .unwrap();
+assert_eq!(attrs.scheme().unwrap(), 0x2A);
+```
+
+Built-in views always win: a factory registered for a codec that has a built-in view is never consulted. A repeat `with_local_codec` call for the same kind replaces the earlier factory: the last registration wins. Factory errors propagate unchanged. The `disclosure` view is codec-agnostic, so a factory registered for that kind is never consulted. The wire encoder carries arbitrary attributes, so the built `Multisig` roundtrips through encode and decode unchanged. The tests in `tests/custom_codec_tests.rs` exercise this flow end to end.
+
 ### View Traits
 
 | Trait | Methods | Purpose |
@@ -136,7 +215,7 @@ To provide an abstract interface to digital signatures of all schemes, this crat
 | `ThresholdAttrView` | `threshold()`, `limit()`, `identifier()`, `threshold_data()` | Read threshold parameters (BLS only) |
 | `ThresholdView` | `shares()`, `shares_with_disclosure()`, `add_share()`, `add_share_with_meta()`, `combine()`, `combine_with_meta()` | Accumulate and combine threshold signature shares (BLS only) |
 | `ThresholdDisclosureView` | `disclosure_mode()`, `read_threshold_params()`, `to_disclosure()` | Read or convert the threshold disclosure mode (all codecs) |
-| `Views` | `attr_view()`, `data_view()`, `conv_view()`, `threshold_attr_view()`, `threshold_view()`, `disclosure_view()` | Dispatcher trait — obtain any view from a `Multisig` |
+| `Views` (deprecated) | `attr_view()`, `data_view()`, `conv_view()`, `threshold_attr_view()`, `threshold_view()`, `disclosure_view()` | Dispatcher trait — obtain any view from a `Multisig`. **Deprecated since 1.5.0**: use `ViewBuilder` (removal planned for 2.0.0) |
 
 ### View Dispatch by Codec Family
 
@@ -154,7 +233,7 @@ To provide an abstract interface to digital signatures of all schemes, this crat
 | Ed25519-MAYO2 | `ed25519_mayo2::View` | `ed25519_mayo2::View` | `ed25519_mayo2::View` | — | — |
 | Other hybrids | `ed25519_hybrid::View` | `ed25519_hybrid::View` | `ed25519_hybrid::View` | — | — |
 
-The `disclosure_view()` method is codec-agnostic. It is available on all codecs.
+Dispatch runs inside `ViewBuilder` through the crate-internal `views::dispatch` functions. The table content is unchanged from earlier releases. The `disclosure` view is codec-agnostic. It is available on all codecs.
 
 ### Copy-on-Write Semantics
 
@@ -164,8 +243,8 @@ Operations that appear to mutate the Multisig (`add_share`, `combine`, `to_discl
 let mut ms = Builder::new(Codec::Bls12381G2Msig).try_build()?;
 for share in &shares {
     ms = {
-        let tv = ms.threshold_view()?;
-    // CoW — returns a new Multisig with the share added
+        let tv = ViewBuilder::new(&ms).threshold().build()?;
+        // CoW — returns a new Multisig with the share added
         tv.add_share(share)?
     };
 }
@@ -173,7 +252,7 @@ for share in &shares {
 
 ## Builder API
 
-The `Builder` constructs `Multisig` objects:
+The `Builder` constructs `Multisig` objects. It is a different type from `ViewBuilder` ([Views on the Multisig Data](#views-on-the-multisig-data)), which builds views over an existing `Multisig`:
 
 | Method | Description |
 |---|---|
@@ -196,12 +275,12 @@ The `Builder` constructs `Multisig` objects:
 
 ## Generating and Verifying Signatures
 
-Signature generation and verification are in the companion [`Multi-Key`][MULTIKEY] crate. They use the `SignView` and `VerifyView` traits on a `Multikey`. The `Multikey::sign_view()` method produces a `Multisig`. The `Multikey::verify_view()` method verifies a `Multisig` against an optional message.
+Signature generation and verification are in the companion [`Multi-Key`][MULTIKEY] crate. They use the `SignView` and `VerifyView` views on a `Multikey`, built with `multi_key::ViewBuilder`. The sign view produces a `Multisig`. The verify view verifies a `Multisig` against an optional message.
 
 ### Generating a Signature
 
 ```rust
-use multi_key::{Builder, Views};
+use multi_key::{Builder, ViewBuilder};
 use multi_codec::Codec;
 
 // Generate an Ed25519 key and sign a message
@@ -209,22 +288,34 @@ let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rand::rng())?
     .try_build()?;
 
 // Combined signature (carries the message in-band)
-let multisig = mk.sign_view()?.sign(b"hello world", true, None)?;
+let multisig = ViewBuilder::new(&mk)
+    .sign()
+    .build()?
+    .sign(b"hello world", true, None)?;
 
 // Detached signature (message supplied out-of-band for verification)
-let detached = mk.sign_view()?.sign(b"hello world", false, None)?;
+let detached = ViewBuilder::new(&mk)
+    .sign()
+    .build()?
+    .sign(b"hello world", false, None)?;
 ```
 
 ### Verifying a Signature
 
 ```rust
-use multi_key::Views;
+use multi_key::ViewBuilder;
 
 // Verify a combined signature (message is carried in the Multisig)
-mk.verify_view()?.verify(&multisig, None)?;
+ViewBuilder::new(&mk)
+    .verify()
+    .build()?
+    .verify(&multisig, None)?;
 
 // Verify a detached signature (message supplied separately)
-mk.verify_view()?.verify(&detached, Some(b"hello world"))?;
+ViewBuilder::new(&mk)
+    .verify()
+    .build()?
+    .verify(&detached, Some(b"hello world"))?;
 ```
 
 ### Combined vs Detached Signatures
@@ -263,27 +354,29 @@ BLS12-381 supports three signature schemes, stored as `AttrId::Scheme`:
 ### Accumulating and Combining Shares
 
 ```rust
-use multi_key::{Builder, Views};
+use multi_key::Builder;
+use multi_sig::ViewBuilder;
 use multi_codec::Codec;
 
 // Split a BLS G2 key into 3-of-5 shares
 let mk = Builder::new_from_random_bytes(Codec::Bls12381G2Priv, &mut rand::rng())?
     .try_build()?;
-let shares = mk.threshold_view()?.split(3, 5)?;
+// the companion crate has its own ViewBuilder, so this snippet qualifies it
+let shares = multi_key::ViewBuilder::new(&mk).threshold().build()?.split(3, 5)?;
 
 // Each share signs the message (done by the shareholder)
 let partial_sigs: Vec<_> = shares.iter()
-    .map(|s| s.sign_view()?.sign(b"message", true, Some(2))?) // scheme 2 = PoP
+    .map(|s| multi_key::ViewBuilder::new(&s).sign().build()?.sign(b"message", true, Some(2))?) // scheme 2 = PoP
     .collect();
 
 // Accumulate shares into a combined Multisig
 let mut ms = partial_sigs[0].clone();
 for ps in &partial_sigs[1..] {
-    ms = ms.threshold_view()?.add_share(ps)?;
+    ms = ViewBuilder::new(&ms).threshold().build()?.add_share(ps)?;
 }
 
 // Combine into the final signature
-let combined = ms.threshold_view()?.combine()?;
+let combined = ViewBuilder::new(&ms).threshold().build()?.combine()?;
 ```
 
 ### SSH Round-Trip for BLS Share Signatures
@@ -333,14 +426,14 @@ There are three ways to produce shares in a given disclosure mode:
 **1. Direct creation via `split_with_disclosure()`:**
 
 ```rust
-use multi_key::{Builder, Views, ThresholdDisclosure};
+use multi_key::{Builder, ThresholdDisclosure, ViewBuilder};
 
 let meta_key = multi_key::generate_meta_key();
 let meta_mk = Builder::new(Codec::Chacha20Poly1305)
     .with_key_bytes(&meta_key.as_slice())
     .try_build()?;
 
-let shares = mk.threshold_view()?.split_with_disclosure(3, 5,
+let shares = ViewBuilder::new(&mk).threshold().build()?.split_with_disclosure(3, 5,
     ThresholdDisclosure::FullConfidentialial, Some(&meta_mk))?;
 ```
 
@@ -357,7 +450,9 @@ let share = Builder::new(Codec::Bls12381G2ShareMsig)
 **3. Convert an existing share:**
 
 ```rust
-let encrypted = share.disclosure_view()?
+let encrypted = ViewBuilder::new(&share)
+    .disclosure()
+    .build()?
     .to_disclosure(ThresholdDisclosure::FullConfidentialial, Some(&meta_mk), None)?;
 ```
 
@@ -366,14 +461,18 @@ let encrypted = share.disclosure_view()?
 Use `read_threshold_params()` with the `meta_key` to decrypt `t` and `n`:
 
 ```rust
-let (t, n) = encrypted.disclosure_view()?
+let (t, n) = ViewBuilder::new(&encrypted)
+    .disclosure()
+    .build()?
     .read_threshold_params(Some(&meta_mk))?;
 ```
 
 ### Combining Encrypted Shares
 
 ```rust
-let combined = ms.threshold_view()?
+let combined = ViewBuilder::new(&ms)
+    .threshold()
+    .build()?
     .combine_with_meta(Some(&meta_mk))?;
 ```
 
@@ -383,15 +482,21 @@ The `to_disclosure()` method converts between any pair of modes. It reads the cu
 
 ```rust
 // Full -> Partial
-let partial = full.disclosure_view()?
+let partial = ViewBuilder::new(&full)
+    .disclosure()
+    .build()?
     .to_disclosure(ThresholdDisclosure::Partial, Some(&meta_mk), None)?;
 
 // Partial -> FullConfidentialial
-let confidential = partial.disclosure_view()?
+let confidential = ViewBuilder::new(&partial)
+    .disclosure()
+    .build()?
     .to_disclosure(ThresholdDisclosure::FullConfidentialial, Some(&meta_mk), Some(&meta_mk))?;
 
 // FullConfidentialial -> Full
-let full_again = confidential.disclosure_view()?
+let full_again = ViewBuilder::new(&confidential)
+    .disclosure()
+    .build()?
     .to_disclosure(ThresholdDisclosure::Full, None, Some(&meta_mk))?;
 ```
 

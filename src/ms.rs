@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-#[cfg(feature = "lamport")]
-use crate::views::lamport;
-#[cfg(feature = "lamport")]
-use crate::views::lamport_merkle;
-#[cfg(feature = "xmss")]
-use crate::views::xmss;
 use crate::{
-    AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView, Views,
-    error::AttributesError,
+    AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView,
     views::{
-        DisclosureView, ThresholdDisclosure, ThresholdDisclosureView,
+        ThresholdDisclosure, ThresholdDisclosureView,
         bls12381::{self, SchemeTypeId},
-        ed25519, ed25519_hybrid, ed25519_mayo2, fn_dsa, mayo, ml_dsa, nist_p, rsa, secp256k1,
-        slh_dsa, threshold_meta,
+        dispatch, secp256k1, threshold_meta,
     },
 };
+// `Views` is deprecated; this import supports the deprecated delegating impl.
+#[allow(deprecated)]
+use crate::Views;
 use blsful::{
     Signature, SignatureShare,
     inner_types::{GroupEncoding, PrimeField},
@@ -376,408 +371,33 @@ impl fmt::Debug for Multisig {
     }
 }
 
+// The trait is deprecated; implementing it warrants this allowance.
+#[allow(deprecated)]
 impl Views for Multisig {
     /// Provide a read-only view to access the signature attributes
     fn attr_view<'a>(&'a self) -> Result<Box<dyn AttrView + 'a>, Error> {
-        match self.codec {
-            Codec::Bls12381G1Msig
-            | Codec::Bls12381G2Msig
-            | Codec::Bls12381G1ShareMsig
-            | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
-            Codec::EddsaMsig | Codec::XeddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
-            Codec::Es256KMsig => Ok(Box::new(secp256k1::View::try_from(self)?)),
-            Codec::Es256Msig | Codec::Es384Msig | Codec::Es521Msig => {
-                Ok(Box::new(nist_p::View::try_from(self)?))
-            }
-            Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
-            Codec::SlhDsaSha2128FMsig
-            | Codec::SlhDsaSha2128SMsig
-            | Codec::SlhDsaSha2192FMsig
-            | Codec::SlhDsaSha2192SMsig
-            | Codec::SlhDsaSha2256FMsig
-            | Codec::SlhDsaSha2256SMsig
-            | Codec::SlhDsaShake128FMsig
-            | Codec::SlhDsaShake128SMsig
-            | Codec::SlhDsaShake192FMsig
-            | Codec::SlhDsaShake192SMsig
-            | Codec::SlhDsaShake256FMsig
-            | Codec::SlhDsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
-            Codec::MlDsa65Msig | Codec::MlDsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
-            Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
-                Ok(Box::new(fn_dsa::View::try_from(self)?))
-            }
-            Codec::Mayo1Msig | Codec::Mayo2Msig | Codec::Mayo3Msig | Codec::Mayo5Msig => {
-                Ok(Box::new(mayo::View::try_from(self)?))
-            }
-            Codec::Ed25519Mayo2Msig => Ok(Box::new(ed25519_mayo2::View::try_from(self)?)),
-            Codec::Ed25519Mldsa65Msig
-            | Codec::Ed25519Fndsa512Msig
-            | Codec::Bls12381G1Mldsa65Msig
-            | Codec::Bls12381G1Fndsa512Msig
-            | Codec::Bls12381G1Mayo1Msig
-            | Codec::Bls12381G1Mayo2Msig => Ok(Box::new(ed25519_hybrid::View::try_from(self)?)),
-            #[cfg(feature = "lamport")]
-            Codec::LamportSha3256Sig
-            | Codec::LamportSha3384Sig
-            | Codec::LamportSha3512Sig
-            | Codec::LamportSha3256SigShare
-            | Codec::LamportSha3384SigShare
-            | Codec::LamportSha3512SigShare
-            | Codec::LamportSha2256Sig
-            | Codec::LamportSha2384Sig
-            | Codec::LamportSha2512Sig
-            | Codec::LamportSha2256SigShare
-            | Codec::LamportSha2384SigShare
-            | Codec::LamportSha2512SigShare
-            | Codec::LamportBlake2B512Sig
-            | Codec::LamportBlake2S256Sig
-            | Codec::LamportBlake3256Sig
-            | Codec::LamportBlake2B512SigShare
-            | Codec::LamportBlake2S256SigShare
-            | Codec::LamportBlake3256SigShare
-            | Codec::LamportShake128Sig
-            | Codec::LamportShake256Sig
-            | Codec::LamportShake128SigShare
-            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
-            #[cfg(feature = "lamport")]
-            Codec::LamportMerkleSha3512Sig
-            | Codec::LamportMerkleSha3512SigShare
-            | Codec::LamportMerkleSha3384Sig
-            | Codec::LamportMerkleSha3384SigShare
-            | Codec::LamportMerkleSha3256Sig
-            | Codec::LamportMerkleSha3256SigShare
-            | Codec::LamportMerkleSha2512Sig
-            | Codec::LamportMerkleSha2512SigShare
-            | Codec::LamportMerkleSha2384Sig
-            | Codec::LamportMerkleSha2384SigShare
-            | Codec::LamportMerkleSha2256Sig
-            | Codec::LamportMerkleSha2256SigShare
-            | Codec::LamportMerkleBlake2B512Sig
-            | Codec::LamportMerkleBlake2B512SigShare
-            | Codec::LamportMerkleBlake2S256Sig
-            | Codec::LamportMerkleBlake2S256SigShare
-            | Codec::LamportMerkleBlake3256Sig
-            | Codec::LamportMerkleBlake3256SigShare
-            | Codec::LamportMerkleShake128Sig
-            | Codec::LamportMerkleShake128SigShare
-            | Codec::LamportMerkleShake256Sig
-            | Codec::LamportMerkleShake256SigShare => {
-                Ok(Box::new(lamport_merkle::View::try_from(self)?))
-            }
-            #[cfg(feature = "xmss")]
-            Codec::XmssSha210256Msig | Codec::XmssSha216256Msig | Codec::XmssSha220256Msig => {
-                Ok(Box::new(xmss::View::try_from(self)?))
-            }
-            _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
-        }
+        dispatch::dispatch_attr_view(self)
     }
     /// Provide a read-only view to access signature data
     fn data_view<'a>(&'a self) -> Result<Box<dyn DataView + 'a>, Error> {
-        match self.codec {
-            Codec::Bls12381G1Msig
-            | Codec::Bls12381G2Msig
-            | Codec::Bls12381G1ShareMsig
-            | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
-            Codec::EddsaMsig | Codec::XeddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
-            Codec::Es256KMsig => Ok(Box::new(secp256k1::View::try_from(self)?)),
-            Codec::Es256Msig | Codec::Es384Msig | Codec::Es521Msig => {
-                Ok(Box::new(nist_p::View::try_from(self)?))
-            }
-            Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
-            Codec::SlhDsaSha2128FMsig
-            | Codec::SlhDsaSha2128SMsig
-            | Codec::SlhDsaSha2192FMsig
-            | Codec::SlhDsaSha2192SMsig
-            | Codec::SlhDsaSha2256FMsig
-            | Codec::SlhDsaSha2256SMsig
-            | Codec::SlhDsaShake128FMsig
-            | Codec::SlhDsaShake128SMsig
-            | Codec::SlhDsaShake192FMsig
-            | Codec::SlhDsaShake192SMsig
-            | Codec::SlhDsaShake256FMsig
-            | Codec::SlhDsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
-            Codec::MlDsa65Msig | Codec::MlDsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
-            Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
-                Ok(Box::new(fn_dsa::View::try_from(self)?))
-            }
-            Codec::Mayo1Msig | Codec::Mayo2Msig | Codec::Mayo3Msig | Codec::Mayo5Msig => {
-                Ok(Box::new(mayo::View::try_from(self)?))
-            }
-            Codec::Ed25519Mayo2Msig => Ok(Box::new(ed25519_mayo2::View::try_from(self)?)),
-            Codec::Ed25519Mldsa65Msig
-            | Codec::Ed25519Fndsa512Msig
-            | Codec::Bls12381G1Mldsa65Msig
-            | Codec::Bls12381G1Fndsa512Msig
-            | Codec::Bls12381G1Mayo1Msig
-            | Codec::Bls12381G1Mayo2Msig => Ok(Box::new(ed25519_hybrid::View::try_from(self)?)),
-            #[cfg(feature = "lamport")]
-            Codec::LamportSha3256Sig
-            | Codec::LamportSha3384Sig
-            | Codec::LamportSha3512Sig
-            | Codec::LamportSha3256SigShare
-            | Codec::LamportSha3384SigShare
-            | Codec::LamportSha3512SigShare
-            | Codec::LamportSha2256Sig
-            | Codec::LamportSha2384Sig
-            | Codec::LamportSha2512Sig
-            | Codec::LamportSha2256SigShare
-            | Codec::LamportSha2384SigShare
-            | Codec::LamportSha2512SigShare
-            | Codec::LamportBlake2B512Sig
-            | Codec::LamportBlake2S256Sig
-            | Codec::LamportBlake3256Sig
-            | Codec::LamportBlake2B512SigShare
-            | Codec::LamportBlake2S256SigShare
-            | Codec::LamportBlake3256SigShare
-            | Codec::LamportShake128Sig
-            | Codec::LamportShake256Sig
-            | Codec::LamportShake128SigShare
-            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
-            #[cfg(feature = "lamport")]
-            Codec::LamportMerkleSha3512Sig
-            | Codec::LamportMerkleSha3512SigShare
-            | Codec::LamportMerkleSha3384Sig
-            | Codec::LamportMerkleSha3384SigShare
-            | Codec::LamportMerkleSha3256Sig
-            | Codec::LamportMerkleSha3256SigShare
-            | Codec::LamportMerkleSha2512Sig
-            | Codec::LamportMerkleSha2512SigShare
-            | Codec::LamportMerkleSha2384Sig
-            | Codec::LamportMerkleSha2384SigShare
-            | Codec::LamportMerkleSha2256Sig
-            | Codec::LamportMerkleSha2256SigShare
-            | Codec::LamportMerkleBlake2B512Sig
-            | Codec::LamportMerkleBlake2B512SigShare
-            | Codec::LamportMerkleBlake2S256Sig
-            | Codec::LamportMerkleBlake2S256SigShare
-            | Codec::LamportMerkleBlake3256Sig
-            | Codec::LamportMerkleBlake3256SigShare
-            | Codec::LamportMerkleShake128Sig
-            | Codec::LamportMerkleShake128SigShare
-            | Codec::LamportMerkleShake256Sig
-            | Codec::LamportMerkleShake256SigShare => {
-                Ok(Box::new(lamport_merkle::View::try_from(self)?))
-            }
-            #[cfg(feature = "xmss")]
-            Codec::XmssSha210256Msig | Codec::XmssSha216256Msig | Codec::XmssSha220256Msig => {
-                Ok(Box::new(xmss::View::try_from(self)?))
-            }
-            _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
-        }
+        dispatch::dispatch_data_view(self)
     }
-    /// Provide a read-only view to access signature data
+    /// Provide a view for converting to other signature formats
     fn conv_view<'a>(&'a self) -> Result<Box<dyn ConvView + 'a>, Error> {
-        match self.codec {
-            Codec::Bls12381G1Msig
-            | Codec::Bls12381G2Msig
-            | Codec::Bls12381G1ShareMsig
-            | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
-            Codec::EddsaMsig | Codec::XeddsaMsig => Ok(Box::new(ed25519::View::try_from(self)?)),
-            Codec::Es256KMsig => Ok(Box::new(secp256k1::View::try_from(self)?)),
-            Codec::Es256Msig | Codec::Es384Msig | Codec::Es521Msig => {
-                Ok(Box::new(nist_p::View::try_from(self)?))
-            }
-            Codec::Rs256Msig => Ok(Box::new(rsa::View::try_from(self)?)),
-            Codec::SlhDsaSha2128FMsig
-            | Codec::SlhDsaSha2128SMsig
-            | Codec::SlhDsaSha2192FMsig
-            | Codec::SlhDsaSha2192SMsig
-            | Codec::SlhDsaSha2256FMsig
-            | Codec::SlhDsaSha2256SMsig
-            | Codec::SlhDsaShake128FMsig
-            | Codec::SlhDsaShake128SMsig
-            | Codec::SlhDsaShake192FMsig
-            | Codec::SlhDsaShake192SMsig
-            | Codec::SlhDsaShake256FMsig
-            | Codec::SlhDsaShake256SMsig => Ok(Box::new(slh_dsa::View::try_from(self)?)),
-            Codec::MlDsa65Msig | Codec::MlDsa87Msig => Ok(Box::new(ml_dsa::View::try_from(self)?)),
-            Codec::FnDsa512Msig | Codec::FnDsa1024Msig => {
-                Ok(Box::new(fn_dsa::View::try_from(self)?))
-            }
-            Codec::Mayo1Msig | Codec::Mayo2Msig | Codec::Mayo3Msig | Codec::Mayo5Msig => {
-                Ok(Box::new(mayo::View::try_from(self)?))
-            }
-            Codec::Ed25519Mayo2Msig => Ok(Box::new(ed25519_mayo2::View::try_from(self)?)),
-            Codec::Ed25519Mldsa65Msig
-            | Codec::Ed25519Fndsa512Msig
-            | Codec::Bls12381G1Mldsa65Msig
-            | Codec::Bls12381G1Fndsa512Msig
-            | Codec::Bls12381G1Mayo1Msig
-            | Codec::Bls12381G1Mayo2Msig => Ok(Box::new(ed25519_hybrid::View::try_from(self)?)),
-            #[cfg(feature = "lamport")]
-            Codec::LamportSha3256Sig
-            | Codec::LamportSha3384Sig
-            | Codec::LamportSha3512Sig
-            | Codec::LamportSha3256SigShare
-            | Codec::LamportSha3384SigShare
-            | Codec::LamportSha3512SigShare
-            | Codec::LamportSha2256Sig
-            | Codec::LamportSha2384Sig
-            | Codec::LamportSha2512Sig
-            | Codec::LamportSha2256SigShare
-            | Codec::LamportSha2384SigShare
-            | Codec::LamportSha2512SigShare
-            | Codec::LamportBlake2B512Sig
-            | Codec::LamportBlake2S256Sig
-            | Codec::LamportBlake3256Sig
-            | Codec::LamportBlake2B512SigShare
-            | Codec::LamportBlake2S256SigShare
-            | Codec::LamportBlake3256SigShare
-            | Codec::LamportShake128Sig
-            | Codec::LamportShake256Sig
-            | Codec::LamportShake128SigShare
-            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
-            #[cfg(feature = "lamport")]
-            Codec::LamportMerkleSha3512Sig
-            | Codec::LamportMerkleSha3512SigShare
-            | Codec::LamportMerkleSha3384Sig
-            | Codec::LamportMerkleSha3384SigShare
-            | Codec::LamportMerkleSha3256Sig
-            | Codec::LamportMerkleSha3256SigShare
-            | Codec::LamportMerkleSha2512Sig
-            | Codec::LamportMerkleSha2512SigShare
-            | Codec::LamportMerkleSha2384Sig
-            | Codec::LamportMerkleSha2384SigShare
-            | Codec::LamportMerkleSha2256Sig
-            | Codec::LamportMerkleSha2256SigShare
-            | Codec::LamportMerkleBlake2B512Sig
-            | Codec::LamportMerkleBlake2B512SigShare
-            | Codec::LamportMerkleBlake2S256Sig
-            | Codec::LamportMerkleBlake2S256SigShare
-            | Codec::LamportMerkleBlake3256Sig
-            | Codec::LamportMerkleBlake3256SigShare
-            | Codec::LamportMerkleShake128Sig
-            | Codec::LamportMerkleShake128SigShare
-            | Codec::LamportMerkleShake256Sig
-            | Codec::LamportMerkleShake256SigShare => {
-                Ok(Box::new(lamport_merkle::View::try_from(self)?))
-            }
-            #[cfg(feature = "xmss")]
-            Codec::XmssSha210256Msig | Codec::XmssSha216256Msig | Codec::XmssSha220256Msig => {
-                Ok(Box::new(xmss::View::try_from(self)?))
-            }
-            _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
-        }
+        dispatch::dispatch_conv_view(self)
     }
     /// Provide a read-only view to access the threshold signature attributes
     fn threshold_attr_view<'a>(&'a self) -> Result<Box<dyn ThresholdAttrView + 'a>, Error> {
-        match self.codec {
-            Codec::Bls12381G1Msig
-            | Codec::Bls12381G2Msig
-            | Codec::Bls12381G1ShareMsig
-            | Codec::Bls12381G2ShareMsig => Ok(Box::new(bls12381::View::try_from(self)?)),
-            #[cfg(feature = "lamport")]
-            Codec::LamportSha3256Sig
-            | Codec::LamportSha3256SigShare
-            | Codec::LamportSha3384Sig
-            | Codec::LamportSha3384SigShare
-            | Codec::LamportSha3512Sig
-            | Codec::LamportSha3512SigShare
-            | Codec::LamportSha2256Sig
-            | Codec::LamportSha2256SigShare
-            | Codec::LamportSha2384Sig
-            | Codec::LamportSha2384SigShare
-            | Codec::LamportSha2512Sig
-            | Codec::LamportSha2512SigShare
-            | Codec::LamportBlake2B512Sig
-            | Codec::LamportBlake2B512SigShare
-            | Codec::LamportBlake2S256Sig
-            | Codec::LamportBlake2S256SigShare
-            | Codec::LamportBlake3256Sig
-            | Codec::LamportBlake3256SigShare
-            | Codec::LamportShake128Sig
-            | Codec::LamportShake128SigShare
-            | Codec::LamportShake256Sig
-            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
-            #[cfg(feature = "lamport")]
-            Codec::LamportMerkleSha3512Sig
-            | Codec::LamportMerkleSha3512SigShare
-            | Codec::LamportMerkleSha3384Sig
-            | Codec::LamportMerkleSha3384SigShare
-            | Codec::LamportMerkleSha3256Sig
-            | Codec::LamportMerkleSha3256SigShare
-            | Codec::LamportMerkleSha2512Sig
-            | Codec::LamportMerkleSha2512SigShare
-            | Codec::LamportMerkleSha2384Sig
-            | Codec::LamportMerkleSha2384SigShare
-            | Codec::LamportMerkleSha2256Sig
-            | Codec::LamportMerkleSha2256SigShare
-            | Codec::LamportMerkleBlake2B512Sig
-            | Codec::LamportMerkleBlake2B512SigShare
-            | Codec::LamportMerkleBlake2S256Sig
-            | Codec::LamportMerkleBlake2S256SigShare
-            | Codec::LamportMerkleBlake3256Sig
-            | Codec::LamportMerkleBlake3256SigShare
-            | Codec::LamportMerkleShake128Sig
-            | Codec::LamportMerkleShake128SigShare
-            | Codec::LamportMerkleShake256Sig
-            | Codec::LamportMerkleShake256SigShare => {
-                Ok(Box::new(lamport_merkle::View::try_from(self)?))
-            }
-            _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
-        }
+        dispatch::dispatch_threshold_attr_view(self)
     }
     /// Provide the view for adding a share to a multisig
     fn threshold_view<'a>(&'a self) -> Result<Box<dyn ThresholdView + 'a>, Error> {
-        match self.codec {
-            Codec::Bls12381G1Msig | Codec::Bls12381G2Msig => {
-                Ok(Box::new(bls12381::View::try_from(self)?))
-            }
-            #[cfg(feature = "lamport")]
-            Codec::LamportSha3256Sig
-            | Codec::LamportSha3256SigShare
-            | Codec::LamportSha3384Sig
-            | Codec::LamportSha3384SigShare
-            | Codec::LamportSha3512Sig
-            | Codec::LamportSha3512SigShare
-            | Codec::LamportSha2256Sig
-            | Codec::LamportSha2256SigShare
-            | Codec::LamportSha2384Sig
-            | Codec::LamportSha2384SigShare
-            | Codec::LamportSha2512Sig
-            | Codec::LamportSha2512SigShare
-            | Codec::LamportBlake2B512Sig
-            | Codec::LamportBlake2B512SigShare
-            | Codec::LamportBlake2S256Sig
-            | Codec::LamportBlake2S256SigShare
-            | Codec::LamportBlake3256Sig
-            | Codec::LamportBlake3256SigShare
-            | Codec::LamportShake128Sig
-            | Codec::LamportShake128SigShare
-            | Codec::LamportShake256Sig
-            | Codec::LamportShake256SigShare => Ok(Box::new(lamport::View::try_from(self)?)),
-            #[cfg(feature = "lamport")]
-            Codec::LamportMerkleSha3512Sig
-            | Codec::LamportMerkleSha3512SigShare
-            | Codec::LamportMerkleSha3384Sig
-            | Codec::LamportMerkleSha3384SigShare
-            | Codec::LamportMerkleSha3256Sig
-            | Codec::LamportMerkleSha3256SigShare
-            | Codec::LamportMerkleSha2512Sig
-            | Codec::LamportMerkleSha2512SigShare
-            | Codec::LamportMerkleSha2384Sig
-            | Codec::LamportMerkleSha2384SigShare
-            | Codec::LamportMerkleSha2256Sig
-            | Codec::LamportMerkleSha2256SigShare
-            | Codec::LamportMerkleBlake2B512Sig
-            | Codec::LamportMerkleBlake2B512SigShare
-            | Codec::LamportMerkleBlake2S256Sig
-            | Codec::LamportMerkleBlake2S256SigShare
-            | Codec::LamportMerkleBlake3256Sig
-            | Codec::LamportMerkleBlake3256SigShare
-            | Codec::LamportMerkleShake128Sig
-            | Codec::LamportMerkleShake128SigShare
-            | Codec::LamportMerkleShake256Sig
-            | Codec::LamportMerkleShake256SigShare => {
-                Ok(Box::new(lamport_merkle::View::try_from(self)?))
-            }
-            _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
-        }
+        dispatch::dispatch_threshold_view(self)
     }
 
     /// Provide an interface for threshold disclosure mode operations
     fn disclosure_view<'a>(&'a self) -> Result<Box<dyn ThresholdDisclosureView + 'a>, Error> {
-        Ok(Box::new(DisclosureView::new(self)))
+        dispatch::dispatch_disclosure_view(self)
     }
 }
 
@@ -1173,7 +793,7 @@ impl Builder {
         if let Some(shares) = self.shares {
             for share in &shares {
                 ms = {
-                    let tv = ms.threshold_view()?;
+                    let tv = dispatch::dispatch_threshold_view(&ms)?;
                     tv.add_share(share)?
                 };
             }
@@ -1187,6 +807,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ViewBuilder;
 
     #[test]
     fn test_encoded() {
@@ -1232,7 +853,7 @@ mod tests {
             // Every listed codec must produce a working sign-data view. A
             // codec in SIG_CODECS that fails to dispatch here has drifted
             // from the view dispatch tables.
-            let result = ms.data_view();
+            let result = ViewBuilder::new(&ms).data().build();
             assert!(
                 result.is_ok(),
                 "SIG_CODECS entry {codec:?} does not dispatch to a data view (error kind {:?})",
@@ -1262,7 +883,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_bls_signature() {
         let sk = blsful::Bls12381G2::new_secret_key();
         let sig = sk
@@ -1272,7 +892,7 @@ mod tests {
             )
             .unwrap();
 
-        let ms = Builder::new_from_bls_signature(&sig)
+        let ms = Builder::new_from_bls_signature_with_codec(Codec::Bls12381G2Msig, &sig)
             .unwrap()
             .try_build()
             .unwrap();
@@ -1282,7 +902,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_bls_signature_combine() {
         let sk = blsful::Bls12381G2::new_secret_key();
         let sig = sk
@@ -1292,7 +911,7 @@ mod tests {
             )
             .unwrap();
 
-        let ms1 = Builder::new_from_bls_signature(&sig)
+        let ms1 = Builder::new_from_bls_signature_with_codec(Codec::Bls12381G2Msig, &sig)
             .unwrap()
             .with_payload_encoding(Codec::Raw)
             .try_build()
@@ -1309,11 +928,16 @@ mod tests {
                 )
                 .unwrap();
             sigs.push(
-                Builder::new_from_bls_signature_share(3, 4, &sig)
-                    .unwrap()
-                    .with_payload_encoding(Codec::Raw)
-                    .try_build()
-                    .unwrap(),
+                Builder::new_from_bls_signature_share_with_codec(
+                    Codec::Bls12381G2ShareMsig,
+                    3,
+                    4,
+                    &sig,
+                )
+                .unwrap()
+                .with_payload_encoding(Codec::Raw)
+                .try_build()
+                .unwrap(),
             );
         });
 
@@ -1324,11 +948,11 @@ mod tests {
         }
         let ms2 = builder.try_build().unwrap();
 
-        let av = ms2.threshold_attr_view().unwrap();
+        let av = ViewBuilder::new(&ms2).threshold_attr().build().unwrap();
         assert_eq!(3, av.threshold().unwrap());
         assert_eq!(4, av.limit().unwrap());
 
-        let tv = ms2.threshold_view().unwrap();
+        let tv = ViewBuilder::new(&ms2).threshold().build().unwrap();
         let ms3 = tv.combine().unwrap();
 
         assert_eq!(ms1, ms3);
@@ -1340,7 +964,7 @@ mod tests {
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let cv = ms1.conv_view().unwrap();
+        let cv = ViewBuilder::new(&ms1).conv().build().unwrap();
         let ms_ssh = cv.to_ssh_signature().unwrap();
         let ms2 = Builder::new_from_ssh_signature(&ms_ssh)
             .unwrap()
@@ -1355,7 +979,7 @@ mod tests {
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let cv = ms1.conv_view().unwrap();
+        let cv = ViewBuilder::new(&ms1).conv().build().unwrap();
         let ms_ssh = cv.to_ssh_signature().unwrap();
         let ms2 = Builder::new_from_ssh_signature(&ms_ssh)
             .unwrap()
@@ -1365,7 +989,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_bls_signature_ssh_roundtrip() {
         let sk = blsful::Bls12381G1::new_secret_key();
         let sig = sk
@@ -1375,12 +998,12 @@ mod tests {
             )
             .unwrap();
 
-        let ms1 = Builder::new_from_bls_signature(&sig)
+        let ms1 = Builder::new_from_bls_signature_with_codec(Codec::Bls12381G1Msig, &sig)
             .unwrap()
             .try_build()
             .unwrap();
 
-        let cv = ms1.conv_view().unwrap();
+        let cv = ViewBuilder::new(&ms1).conv().build().unwrap();
         let ssh_ms = cv.to_ssh_signature().unwrap();
 
         let ms2 = Builder::new_from_ssh_signature(&ssh_ms)
@@ -1392,7 +1015,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_bls_signature_combine_ssh_roundtrip() {
         let sk = blsful::Bls12381G2::new_secret_key();
         let sig = sk
@@ -1402,7 +1024,7 @@ mod tests {
             )
             .unwrap();
 
-        let ms1 = Builder::new_from_bls_signature(&sig)
+        let ms1 = Builder::new_from_bls_signature_with_codec(Codec::Bls12381G2Msig, &sig)
             .unwrap()
             .with_payload_encoding(Codec::Raw)
             .try_build()
@@ -1419,11 +1041,16 @@ mod tests {
                 )
                 .unwrap();
             sigs.push({
-                let ms = Builder::new_from_bls_signature_share(3, 4, &sig)
-                    .unwrap()
-                    .try_build()
-                    .unwrap();
-                let sc = ms.conv_view().unwrap();
+                let ms = Builder::new_from_bls_signature_share_with_codec(
+                    Codec::Bls12381G2ShareMsig,
+                    3,
+                    4,
+                    &sig,
+                )
+                .unwrap()
+                .try_build()
+                .unwrap();
+                let sc = ViewBuilder::new(&ms).conv().build().unwrap();
                 sc.to_ssh_signature().unwrap()
             });
         });
@@ -1439,11 +1066,11 @@ mod tests {
         }
         let ms2 = builder.try_build().unwrap();
 
-        let av = ms2.threshold_attr_view().unwrap();
+        let av = ViewBuilder::new(&ms2).threshold_attr().build().unwrap();
         assert_eq!(3, av.threshold().unwrap());
         assert_eq!(4, av.limit().unwrap());
 
-        let tv = ms2.threshold_view().unwrap();
+        let tv = ViewBuilder::new(&ms2).threshold().build().unwrap();
         let ms3 = tv.combine().unwrap();
 
         assert_eq!(ms1, ms3);
