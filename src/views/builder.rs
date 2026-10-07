@@ -66,15 +66,25 @@
 //!
 //! # Factory contract
 //!
-//! A factory is a boxed `Fn(&Multisig) -> Result<Box<dyn ViewTrait>, Error>`
-//! closure that must hold the `Send + Sync + 'static` bounds in its type
-//! alias and must not capture borrows. Errors from a factory propagate
-//! unchanged. A repeat `with_local_codec` call for the same kind replaces
-//! the earlier factory: the last registration wins.
+//! A factory holds the HRTB boxed form of its kind's `Local*Fn` type alias:
+//!
+//! ```text
+//! Box<dyn for<'a> Fn(&'a Multisig) -> Result<Box<dyn ViewTrait + 'a>, Error>
+//!     + Send + Sync + 'static>
+//! ```
+//!
+//! The closure must not capture borrows; it works from owned state. Errors
+//! from a factory propagate unchanged. A repeat `with_local_codec` call for
+//! the same kind replaces the earlier factory: the last registration wins.
 //!
 //! A factory may return a view that borrows the `Multisig`. A small
 //! lifetime-parameterized helper function keeps closure inference simple
 //! for that case; see the unit tests for the pattern.
+//!
+//! The builder itself is `Send + Sync` when its factory type is, and the
+//! boxed factories in this crate are. The returned view boxes carry no
+//! `Send`/`Sync` supertrait, so the docs of the view traits must not
+//! promise more.
 //!
 //! # Custom signature schemes
 //!

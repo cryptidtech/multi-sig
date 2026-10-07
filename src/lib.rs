@@ -51,13 +51,40 @@
 //! assert_eq!(ms1, ms2);
 //! ```
 //!
+//! ### Creating Views
+//!
+//! Views give type-safe access to the parts of a `Multisig`. Build them with
+//! [`ViewBuilder`], which selects a view kind fluently and dispatches
+//! built-in views by codec. See `views::builder` for local-codec factories
+//! for custom signature schemes.
+//!
+//! ```rust
+//! use multi_sig::prelude::*;
+//!
+//! let sig_data = vec![0u8; 64];
+//! let ms = Builder::new(Codec::EddsaMsig)
+//!     .with_signature_bytes(&sig_data)
+//!     .try_build()
+//!     .unwrap();
+//!
+//! // a data view reads the signature bytes
+//! let data = ViewBuilder::new(&ms).data().build().unwrap();
+//! assert_eq!(data.sig_bytes().unwrap(), sig_data);
+//!
+//! // an attributes view reads the payload encoding and the scheme
+//! let attrs = ViewBuilder::new(&ms).attr().build().unwrap();
+//! assert_eq!(attrs.scheme().unwrap(), 0);
+//! ```
+//!
 //! ## Features
 //!
 //! - **`serde`** (default): Enables serde serialization support
 //!
 //! ## Thread Safety
 //!
-//! All types are `Send + Sync` and safe for concurrent use.
+//! Most types are `Send + Sync`. A [`ViewBuilder`] is `Send + Sync` when its
+//! registered factories are. The returned view trait objects carry no
+//! `Send`/`Sync` supertrait.
 
 #![warn(missing_docs)]
 #![deny(
