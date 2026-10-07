@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AttrId, AttrView, Builder, ConvView, DataView, Error, Multisig, ThresholdAttrView,
-    ThresholdView, Views,
+    ThresholdView,
     error::{AttributesError, ConversionsError, SharesError},
-    views::threshold_meta::{self, ThresholdDisclosure},
+    views::{
+        dispatch::{
+            dispatch_attr_view, dispatch_data_view, dispatch_disclosure_view,
+            dispatch_threshold_attr_view,
+        },
+        threshold_meta::{self, ThresholdDisclosure},
+    },
 };
 use blsful::{
     Bls12381G1Impl, Bls12381G2Impl, Signature, SignatureSchemes, SignatureShare,
@@ -392,11 +398,11 @@ impl<'a> ConvView for View<'a> {
     /// convert to SSH signature format
     fn to_ssh_signature(&self) -> Result<ssh_key::Signature, Error> {
         // get the signature data
-        let dv = self.ms.data_view()?;
+        let dv = dispatch_data_view(self.ms)?;
         let sig_bytes = dv.sig_bytes()?;
 
         // get the scheme
-        let av = self.ms.attr_view()?;
+        let av = dispatch_attr_view(self.ms)?;
         let scheme_type = SchemeTypeId::try_from(av.scheme()?)?;
 
         match self.ms.codec {
@@ -428,7 +434,7 @@ impl<'a> ConvView for View<'a> {
             }
             Codec::Bls12381G1ShareMsig => {
                 // get the threshold attributes
-                let av = self.ms.threshold_attr_view()?;
+                let av = dispatch_threshold_attr_view(self.ms)?;
                 let threshold = av.threshold()?;
                 let limit = av.limit()?;
                 let identifier_bytes = av.identifier()?;
@@ -465,7 +471,7 @@ impl<'a> ConvView for View<'a> {
             }
             Codec::Bls12381G2ShareMsig => {
                 // get the threshold attributes
-                let av = self.ms.threshold_attr_view()?;
+                let av = dispatch_threshold_attr_view(self.ms)?;
                 let threshold = av.threshold()?;
                 let limit = av.limit()?;
                 let identifier_bytes = av.identifier()?;
@@ -565,7 +571,7 @@ impl<'a> ThresholdView for View<'a> {
 
         // current Multisig threshold data
         let threshold_data = {
-            let av = self.ms.threshold_attr_view()?;
+            let av = dispatch_threshold_attr_view(self.ms)?;
             match av.threshold_data() {
                 Ok(b) => ThresholdData::try_from(b)
                     .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
@@ -582,7 +588,7 @@ impl<'a> ThresholdView for View<'a> {
             .values()
             .try_for_each(|share| -> Result<(), Error> {
                 let encoding = {
-                    let av = self.ms.attr_view()?;
+                    let av = dispatch_attr_view(self.ms)?;
                     av.payload_encoding()?
                 };
                 // build a multisig share out of the share, preserve the message
@@ -616,10 +622,10 @@ impl<'a> ThresholdView for View<'a> {
 
         let (sdata, identifier, threshold, limit, encoding) = {
             // get the scheme
-            let av = share.attr_view()?;
+            let av = dispatch_attr_view(share)?;
             let scheme_type = SchemeTypeId::try_from(av.scheme()?)?;
             // get the share's attributes
-            let av = share.threshold_attr_view()?;
+            let av = dispatch_threshold_attr_view(share)?;
             let threshold = av.threshold()?;
             let limit = av.limit()?;
             let identifier_bytes = av.identifier()?;
@@ -637,11 +643,11 @@ impl<'a> ThresholdView for View<'a> {
             );
 
             // get the share's signature data
-            let dv = share.data_view()?;
+            let dv = dispatch_data_view(share)?;
             let sig_bytes = dv.sig_bytes()?;
 
             let encoding = {
-                let av = self.ms.attr_view()?;
+                let av = dispatch_attr_view(self.ms)?;
                 av.payload_encoding().ok()
             };
 
@@ -657,7 +663,7 @@ impl<'a> ThresholdView for View<'a> {
 
         // update the threshold data
         let threshold_data: Vec<u8> = {
-            let av = self.ms.threshold_attr_view()?;
+            let av = dispatch_threshold_attr_view(self.ms)?;
             let mut tdata = match av.threshold_data() {
                 Ok(b) => ThresholdData::try_from(b)
                     .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
@@ -674,7 +680,7 @@ impl<'a> ThresholdView for View<'a> {
 
         // get the payload encoding
         let encoding = {
-            let av = self.ms.attr_view()?;
+            let av = dispatch_attr_view(self.ms)?;
             // if this multisig doesn't have payload encoding set, set it to
             // the value from the first share added
             match av.payload_encoding() {
@@ -685,7 +691,7 @@ impl<'a> ThresholdView for View<'a> {
 
         // if this multisig doesn't already have the threshold/limit set then
         // set it to match the values from the first share added
-        let av = share.threshold_attr_view()?;
+        let av = dispatch_threshold_attr_view(share)?;
         let threshold = av.threshold().unwrap_or(threshold);
         let limit = av.limit().unwrap_or(limit);
 
@@ -705,7 +711,7 @@ impl<'a> ThresholdView for View<'a> {
     fn combine(&self) -> Result<Multisig, Error> {
         // current Multisig threshold data
         let threshold_data = {
-            let av = self.ms.threshold_attr_view()?;
+            let av = dispatch_threshold_attr_view(self.ms)?;
             match av.threshold_data() {
                 Ok(b) => ThresholdData::try_from(b)
                     .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
@@ -715,7 +721,7 @@ impl<'a> ThresholdView for View<'a> {
 
         // check that we have enough shares to combine
         let num_shares = threshold_data.0.len();
-        let av = self.ms.threshold_attr_view()?;
+        let av = dispatch_threshold_attr_view(self.ms)?;
         if num_shares < av.threshold()? {
             return Err(SharesError::NotEnoughShares.into());
         }
@@ -759,7 +765,7 @@ impl<'a> ThresholdView for View<'a> {
                 let sig = Signature::from_shares(shares.as_slice())
                     .map_err(|e| SharesError::ShareCombineFailed(e.to_string()))?;
                 let encoding = {
-                    let av = self.ms.attr_view()?;
+                    let av = dispatch_attr_view(self.ms)?;
                     av.payload_encoding()?
                 };
                 Builder::new_from_bls_signature_with_codec(self.ms.codec, &sig)?
@@ -805,7 +811,7 @@ impl<'a> ThresholdView for View<'a> {
                 let sig = Signature::from_shares(shares.as_slice())
                     .map_err(|e| SharesError::ShareCombineFailed(e.to_string()))?;
                 let encoding = {
-                    let av = self.ms.attr_view()?;
+                    let av = dispatch_attr_view(self.ms)?;
                     av.payload_encoding()?
                 };
                 Builder::new_from_bls_signature_with_codec(self.ms.codec, &sig)?
@@ -826,7 +832,7 @@ impl<'a> ThresholdView for View<'a> {
         let shares = self.shares()?;
         shares
             .iter()
-            .map(|s| s.disclosure_view()?.to_disclosure(mode, meta_key, None))
+            .map(|s| dispatch_disclosure_view(s)?.to_disclosure(mode, meta_key, None))
             .collect()
     }
 
@@ -839,9 +845,9 @@ impl<'a> ThresholdView for View<'a> {
         let (share_t, share_n) = threshold_meta::read_threshold_params(share, meta_key)?;
 
         let (sdata, identifier, encoding) = {
-            let av = share.attr_view()?;
+            let av = dispatch_attr_view(share)?;
             let scheme_type = SchemeTypeId::try_from(av.scheme()?)?;
-            let tav = share.threshold_attr_view()?;
+            let tav = dispatch_threshold_attr_view(share)?;
             let identifier_bytes = tav.identifier()?;
             if identifier_bytes.len() != 32 {
                 return Err(Error::FailedConversion(
@@ -855,10 +861,10 @@ impl<'a> ThresholdView for View<'a> {
                     Error::FailedConversion("Incorrect identifier bytes".to_string()),
                 )?,
             );
-            let dv = share.data_view()?;
+            let dv = dispatch_data_view(share)?;
             let sig_bytes = dv.sig_bytes()?;
             let encoding = {
-                let av = self.ms.attr_view()?;
+                let av = dispatch_attr_view(self.ms)?;
                 av.payload_encoding().ok()
             };
             (
@@ -869,7 +875,7 @@ impl<'a> ThresholdView for View<'a> {
         };
 
         let threshold_data: Vec<u8> = {
-            let av = self.ms.threshold_attr_view()?;
+            let av = dispatch_threshold_attr_view(self.ms)?;
             let mut tdata = match av.threshold_data() {
                 Ok(b) => ThresholdData::try_from(b)
                     .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
@@ -883,7 +889,7 @@ impl<'a> ThresholdView for View<'a> {
         };
 
         let encoding = {
-            let av = self.ms.attr_view()?;
+            let av = dispatch_attr_view(self.ms)?;
             match av.payload_encoding() {
                 Ok(encoding) => Some(encoding),
                 Err(_) => encoding,
@@ -908,7 +914,7 @@ impl<'a> ThresholdView for View<'a> {
         let (threshold, _limit) = threshold_meta::read_threshold_params(self.ms, meta_key)?;
 
         let threshold_data = {
-            let av = self.ms.threshold_attr_view()?;
+            let av = dispatch_threshold_attr_view(self.ms)?;
             match av.threshold_data() {
                 Ok(b) => ThresholdData::try_from(b)
                     .map_err(|e| SharesError::InvalidThresholdData(e.to_string()))?,
@@ -959,7 +965,7 @@ impl<'a> ThresholdView for View<'a> {
                 let sig = Signature::from_shares(shares.as_slice())
                     .map_err(|e| SharesError::ShareCombineFailed(e.to_string()))?;
                 let encoding = {
-                    let av = self.ms.attr_view()?;
+                    let av = dispatch_attr_view(self.ms)?;
                     av.payload_encoding()?
                 };
                 Builder::new_from_bls_signature_with_codec(self.ms.codec, &sig)?
@@ -1004,7 +1010,7 @@ impl<'a> ThresholdView for View<'a> {
                 let sig = Signature::from_shares(shares.as_slice())
                     .map_err(|e| SharesError::ShareCombineFailed(e.to_string()))?;
                 let encoding = {
-                    let av = self.ms.attr_view()?;
+                    let av = dispatch_attr_view(self.ms)?;
                     av.payload_encoding()?
                 };
                 Builder::new_from_bls_signature_with_codec(self.ms.codec, &sig)?

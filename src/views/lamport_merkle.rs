@@ -14,13 +14,16 @@
 
 use crate::{
     AttrId, AttrView, Builder, ConvView, DataView, Error, Multisig, ThresholdAttrView,
-    ThresholdView, Views,
+    ThresholdView,
     error::{AttributesError, SharesError},
-    views::ThresholdDisclosure,
-    views::lamport::{
-        Blake2b512Digest, Blake2s256Digest, Blake3_256Digest, Sha2_256Digest, Sha2_384Digest,
-        Sha2_512Digest, Sha3_256Digest, Sha3_384Digest, Sha3_512Digest, Shake128Digest,
-        Shake256Digest,
+    views::{
+        ThresholdDisclosure,
+        dispatch::dispatch_data_view,
+        lamport::{
+            Blake2b512Digest, Blake2s256Digest, Blake3_256Digest, Sha2_256Digest, Sha2_384Digest,
+            Sha2_512Digest, Sha3_256Digest, Sha3_384Digest, Sha3_512Digest, Shake128Digest,
+            Shake256Digest,
+        },
     },
 };
 use lamport_signature_plus::{LamportDigest, MtSignature, MtSignatureShare};
@@ -266,7 +269,7 @@ impl<'a> ThresholdView for View<'a> {
         if share.codec() != share_codec {
             return Err(SharesError::ShareTypeMismatch.into());
         }
-        let blob = share.data_view()?.sig_bytes()?;
+        let blob = dispatch_data_view(share)?.sig_bytes()?;
         let blobs = accumulated(self.ms)?;
         let expected = accumulator_depth(self.ms, &blobs)?;
         let depth = check_share_depth(expected, &blob)?;
@@ -311,6 +314,9 @@ impl<'a> ThresholdView for View<'a> {
 }
 
 #[cfg(test)]
+// These tests still exercise the deprecated `Views` trait; remove this
+// allowance when the module migrates to `ViewBuilder`.
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::views::Views as _;

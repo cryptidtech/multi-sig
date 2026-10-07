@@ -151,7 +151,7 @@ pub mod views;
 pub use views::{
     AttrView, ConvView, DataView, MAX_THRESHOLD_PARTICIPANTS, ThresholdAttrView,
     ThresholdDisclosure, ThresholdDisclosureView, ThresholdMetaCipher, ThresholdMetadata,
-    ThresholdView, Views, decrypt_threshold_meta, encrypt_threshold_meta, generate_meta_key,
+    ThresholdView, decrypt_threshold_meta, encrypt_threshold_meta, generate_meta_key,
 };
 
 /// Builder-pattern view creation
@@ -160,6 +160,11 @@ pub use views::builder::{
     LocalDisclosureFn, LocalThresholdAttrFn, LocalThresholdFn, ThresholdAttrKind, ThresholdKind,
     Unselected, ViewBuilder, ViewKind,
 };
+
+// The `Views` trait is deprecated; this re-export keeps source compatibility
+// for the 1.x line.
+#[allow(deprecated)]
+pub use views::Views;
 
 /// Merkle-tree Lamport signature view
 #[cfg(feature = "lamport")]

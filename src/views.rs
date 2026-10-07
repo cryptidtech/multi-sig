@@ -124,6 +124,12 @@ pub trait ThresholdDisclosureView {
 }
 
 /// trait for getting the other views
+///
+/// Deprecated: create views with `ViewBuilder` instead.
+#[deprecated(
+    since = "1.5.0",
+    note = "use ViewBuilder; this trait will be removed in 2.0.0"
+)]
 pub trait Views {
     /// Provide a read-only view to access the signature attributes
     fn attr_view<'a>(&'a self) -> Result<Box<dyn AttrView + 'a>, Error>;

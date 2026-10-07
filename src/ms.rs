@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView, Views,
+    AttrId, AttrView, ConvView, DataView, Error, ThresholdAttrView, ThresholdView,
     views::{
         ThresholdDisclosure, ThresholdDisclosureView,
         bls12381::{self, SchemeTypeId},
         dispatch, secp256k1, threshold_meta,
     },
 };
+// `Views` is deprecated; this import supports the deprecated delegating impl.
+#[allow(deprecated)]
+use crate::Views;
 use blsful::{
     Signature, SignatureShare,
     inner_types::{GroupEncoding, PrimeField},
@@ -368,6 +371,8 @@ impl fmt::Debug for Multisig {
     }
 }
 
+// The trait is deprecated; implementing it warrants this allowance.
+#[allow(deprecated)]
 impl Views for Multisig {
     /// Provide a read-only view to access the signature attributes
     fn attr_view<'a>(&'a self) -> Result<Box<dyn AttrView + 'a>, Error> {
@@ -788,7 +793,7 @@ impl Builder {
         if let Some(shares) = self.shares {
             for share in &shares {
                 ms = {
-                    let tv = ms.threshold_view()?;
+                    let tv = dispatch::dispatch_threshold_view(&ms)?;
                     tv.add_share(share)?
                 };
             }
@@ -800,6 +805,9 @@ impl Builder {
 }
 
 #[cfg(test)]
+// These tests still exercise the deprecated `Views` trait; remove this
+// allowance when the module migrates to `ViewBuilder`.
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
