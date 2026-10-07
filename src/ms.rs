@@ -805,11 +805,9 @@ impl Builder {
 }
 
 #[cfg(test)]
-// These tests still exercise the deprecated `Views` trait; remove this
-// allowance when the module migrates to `ViewBuilder`.
-#[allow(deprecated)]
 mod tests {
     use super::*;
+    use crate::ViewBuilder;
 
     #[test]
     fn test_encoded() {
@@ -855,7 +853,7 @@ mod tests {
             // Every listed codec must produce a working sign-data view. A
             // codec in SIG_CODECS that fails to dispatch here has drifted
             // from the view dispatch tables.
-            let result = ms.data_view();
+            let result = ViewBuilder::new(&ms).data().build();
             assert!(
                 result.is_ok(),
                 "SIG_CODECS entry {codec:?} does not dispatch to a data view (error kind {:?})",
@@ -885,7 +883,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_bls_signature() {
         let sk = blsful::Bls12381G2::new_secret_key();
         let sig = sk
@@ -895,7 +892,7 @@ mod tests {
             )
             .unwrap();
 
-        let ms = Builder::new_from_bls_signature(&sig)
+        let ms = Builder::new_from_bls_signature_with_codec(Codec::Bls12381G2Msig, &sig)
             .unwrap()
             .try_build()
             .unwrap();
@@ -905,7 +902,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_bls_signature_combine() {
         let sk = blsful::Bls12381G2::new_secret_key();
         let sig = sk
@@ -915,7 +911,7 @@ mod tests {
             )
             .unwrap();
 
-        let ms1 = Builder::new_from_bls_signature(&sig)
+        let ms1 = Builder::new_from_bls_signature_with_codec(Codec::Bls12381G2Msig, &sig)
             .unwrap()
             .with_payload_encoding(Codec::Raw)
             .try_build()
@@ -932,11 +928,16 @@ mod tests {
                 )
                 .unwrap();
             sigs.push(
-                Builder::new_from_bls_signature_share(3, 4, &sig)
-                    .unwrap()
-                    .with_payload_encoding(Codec::Raw)
-                    .try_build()
-                    .unwrap(),
+                Builder::new_from_bls_signature_share_with_codec(
+                    Codec::Bls12381G2ShareMsig,
+                    3,
+                    4,
+                    &sig,
+                )
+                .unwrap()
+                .with_payload_encoding(Codec::Raw)
+                .try_build()
+                .unwrap(),
             );
         });
 
@@ -947,11 +948,11 @@ mod tests {
         }
         let ms2 = builder.try_build().unwrap();
 
-        let av = ms2.threshold_attr_view().unwrap();
+        let av = ViewBuilder::new(&ms2).threshold_attr().build().unwrap();
         assert_eq!(3, av.threshold().unwrap());
         assert_eq!(4, av.limit().unwrap());
 
-        let tv = ms2.threshold_view().unwrap();
+        let tv = ViewBuilder::new(&ms2).threshold().build().unwrap();
         let ms3 = tv.combine().unwrap();
 
         assert_eq!(ms1, ms3);
@@ -963,7 +964,7 @@ mod tests {
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let cv = ms1.conv_view().unwrap();
+        let cv = ViewBuilder::new(&ms1).conv().build().unwrap();
         let ms_ssh = cv.to_ssh_signature().unwrap();
         let ms2 = Builder::new_from_ssh_signature(&ms_ssh)
             .unwrap()
@@ -978,7 +979,7 @@ mod tests {
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let cv = ms1.conv_view().unwrap();
+        let cv = ViewBuilder::new(&ms1).conv().build().unwrap();
         let ms_ssh = cv.to_ssh_signature().unwrap();
         let ms2 = Builder::new_from_ssh_signature(&ms_ssh)
             .unwrap()
@@ -988,7 +989,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_bls_signature_ssh_roundtrip() {
         let sk = blsful::Bls12381G1::new_secret_key();
         let sig = sk
@@ -998,12 +998,12 @@ mod tests {
             )
             .unwrap();
 
-        let ms1 = Builder::new_from_bls_signature(&sig)
+        let ms1 = Builder::new_from_bls_signature_with_codec(Codec::Bls12381G1Msig, &sig)
             .unwrap()
             .try_build()
             .unwrap();
 
-        let cv = ms1.conv_view().unwrap();
+        let cv = ViewBuilder::new(&ms1).conv().build().unwrap();
         let ssh_ms = cv.to_ssh_signature().unwrap();
 
         let ms2 = Builder::new_from_ssh_signature(&ssh_ms)
@@ -1015,7 +1015,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_bls_signature_combine_ssh_roundtrip() {
         let sk = blsful::Bls12381G2::new_secret_key();
         let sig = sk
@@ -1025,7 +1024,7 @@ mod tests {
             )
             .unwrap();
 
-        let ms1 = Builder::new_from_bls_signature(&sig)
+        let ms1 = Builder::new_from_bls_signature_with_codec(Codec::Bls12381G2Msig, &sig)
             .unwrap()
             .with_payload_encoding(Codec::Raw)
             .try_build()
@@ -1042,11 +1041,16 @@ mod tests {
                 )
                 .unwrap();
             sigs.push({
-                let ms = Builder::new_from_bls_signature_share(3, 4, &sig)
-                    .unwrap()
-                    .try_build()
-                    .unwrap();
-                let sc = ms.conv_view().unwrap();
+                let ms = Builder::new_from_bls_signature_share_with_codec(
+                    Codec::Bls12381G2ShareMsig,
+                    3,
+                    4,
+                    &sig,
+                )
+                .unwrap()
+                .try_build()
+                .unwrap();
+                let sc = ViewBuilder::new(&ms).conv().build().unwrap();
                 sc.to_ssh_signature().unwrap()
             });
         });
@@ -1062,11 +1066,11 @@ mod tests {
         }
         let ms2 = builder.try_build().unwrap();
 
-        let av = ms2.threshold_attr_view().unwrap();
+        let av = ViewBuilder::new(&ms2).threshold_attr().build().unwrap();
         assert_eq!(3, av.threshold().unwrap());
         assert_eq!(4, av.limit().unwrap());
 
-        let tv = ms2.threshold_view().unwrap();
+        let tv = ViewBuilder::new(&ms2).threshold().build().unwrap();
         let ms3 = tv.combine().unwrap();
 
         assert_eq!(ms1, ms3);
