@@ -2,7 +2,7 @@
 name = "multi-sig"
 version = "1.5.0"
 edition = "2024"
-rust-version = "1.96"
+rust-version = "1.99"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multisig self-describing multicodec implementation for digital signatures"
 repository = "https://github.com/cryptidtech/multi-sig.git"
