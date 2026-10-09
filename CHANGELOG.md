@@ -5,7 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.6.0] - 2026-10-08
+
+### Changed
+
+- Raised `rust-version` from 1.96 to 1.99. The CI MSRV job now installs Rust 1.99.0. No public API changes.
+- Version bumped from `1.5.0` to `1.6.0` (minor: the MSRV raise is possibly breaking per the Cargo book rules).
 
 ## [1.5.0] - 2026-10-07
 
@@ -242,5 +247,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added the `types.rs` module with type-safe wrappers.
 - Added a comprehensive test suite for edge cases, proptests, and security.
 - Initial published release on crates.io as `multi-sig`.
+[1.6.0]: https://github.com/cryptidtech/multi-sig/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/cryptidtech/multi-sig/compare/v1.4.0...v1.5.0
 [1.2.0]: https://github.com/cryptidtech/multi-sig/compare/v1.1.0...v1.2.0

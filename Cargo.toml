@@ -1,8 +1,8 @@
 [package]
 name = "multi-sig"
-version = "1.5.0"
+version = "1.6.0"
 edition = "2024"
-rust-version = "1.96"
+rust-version = "1.99"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multisig self-describing multicodec implementation for digital signatures"
 repository = "https://github.com/cryptidtech/multi-sig.git"
@@ -28,10 +28,10 @@ chacha20poly1305 = "0.11"
 elliptic-curve = "0.14"
 getrandom = { version = "0.4" }
 # blsful configured per-target below (blst for native, rust for wasm)
-multi-base = { version = "1.0", default-features = false }
-multi-codec = "1.5"
-multi-trait = { version = "1.0", default-features = false }
-multi-util = "1.1"
+multi-base = { version = "1.1", default-features = false }
+multi-codec = "1.6"
+multi-trait = { version = "1.1", default-features = false }
+multi-util = "1.2"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 ssh-encoding = "0.3"
 thiserror = { version = "2.0" }
@@ -41,19 +41,19 @@ zeroize = "1"
 lamport_signature_plus = { version = "0.5.0", optional = true }
 sha3 = { version = "0.12", optional = true }
 sha2 = { version = "0.11", optional = true }
-blake2 = { version = "0.11.0-rc.6", optional = true }
+blake2 = { version = "0.11.0", optional = true }
 shake = { version = "0.1", optional = true }
 blake3 = { version = "1.8", optional = true }
 # XMSS support (feature-gated, default-enabled)
 xmss = { version = "0.1.0-pre.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-blsful = { version = "4.0.0", default-features = false, features = ["rust"] }
+blsful = { version = "4.1.0", default-features = false, features = ["rust"] }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 ssh-key = { version = "0.7.0-rc.11", default-features = false, features = ["alloc", "ecdsa", "ed25519"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-blsful = { version = "4.0.0", default-features = false, features = ["blst"] }
+blsful = { version = "4.1.0", default-features = false, features = ["blst"] }
 ssh-key = { version = "0.7.0-rc.11", default-features = false, features = ["alloc", "ecdsa", "ed25519"] }
 
 [dev-dependencies]
