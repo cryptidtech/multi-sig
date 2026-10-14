@@ -14,9 +14,10 @@
 //!
 //! - **[`ThresholdDisclosure::Full`]** — t and n are plaintext attributes (default).
 //! - **[`ThresholdDisclosure::Partial`]** — n is plaintext, t is encrypted.
-//! - **[`ThresholdDisclosure::FullConfidentialial`]** — both t and n are encrypted.
+//! - **[`ThresholdDisclosure::FullConfidential`]** — both t and n are encrypted.
 
 use crate::{AttrId, Error, Multisig};
+#[cfg(feature = "chacha20")]
 use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,
     aead::{Aead, KeyInit, Payload},
@@ -25,6 +26,7 @@ use multi_codec::Codec;
 use multi_trait::{EncodeInto, TryDecodeFrom};
 use multi_util::Varuint;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "chacha20")]
 use zeroize::Zeroizing;
 
 /// Maximum number of threshold participants (t or n) accepted when decoding
@@ -44,7 +46,7 @@ pub enum ThresholdDisclosure {
     /// n is plaintext, t is encrypted (auditable n, hidden t).
     Partial = 1,
     /// Both t and n are encrypted.
-    FullConfidentialial = 2,
+    FullConfidential = 2,
 }
 
 impl ThresholdDisclosure {
@@ -54,7 +56,7 @@ impl ThresholdDisclosure {
         match self {
             Self::Full => "full",
             Self::Partial => "partial",
-            Self::FullConfidentialial => "full-confidentialial",
+            Self::FullConfidential => "full-confidential",
         }
     }
 }
@@ -78,7 +80,7 @@ impl TryFrom<u8> for ThresholdDisclosure {
         match code {
             0 => Ok(Self::Full),
             1 => Ok(Self::Partial),
-            2 => Ok(Self::FullConfidentialial),
+            2 => Ok(Self::FullConfidential),
             _ => Err(Error::Shares(crate::error::SharesError::MetaEncryption(
                 format!("invalid disclosure mode: {code}"),
             ))),
@@ -152,18 +154,16 @@ impl ThresholdMetadata {
 
     /// Encode to CBOR bytes.
     pub fn to_cbor_bytes(&self) -> Result<Vec<u8>, Error> {
-        let mut buf = Vec::new();
-        ciborium::into_writer(self, &mut buf).map_err(|e| {
+        serde_cbor_2::to_vec(self).map_err(|e| {
             Error::Shares(crate::error::SharesError::MetaEncryption(format!(
                 "CBOR encode: {e}"
             )))
-        })?;
-        Ok(buf)
+        })
     }
 
     /// Decode from CBOR bytes.
     pub fn from_cbor_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        ciborium::from_reader(bytes).map_err(|e| {
+        serde_cbor_2::from_slice(bytes).map_err(|e| {
             Error::Shares(crate::error::SharesError::MetaEncryption(format!(
                 "CBOR decode: {e}"
             )))
@@ -201,18 +201,16 @@ impl ThresholdMetaCipher {
 
     /// Encode to CBOR bytes.
     pub fn to_cbor_bytes(&self) -> Result<Vec<u8>, Error> {
-        let mut buf = Vec::new();
-        ciborium::into_writer(self, &mut buf).map_err(|e| {
+        serde_cbor_2::to_vec(self).map_err(|e| {
             Error::Shares(crate::error::SharesError::MetaEncryption(format!(
                 "CBOR encode cipher: {e}"
             )))
-        })?;
-        Ok(buf)
+        })
     }
 
     /// Decode from CBOR bytes.
     pub fn from_cbor_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        ciborium::from_reader(bytes).map_err(|e| {
+        serde_cbor_2::from_slice(bytes).map_err(|e| {
             Error::Shares(crate::error::SharesError::MetaEncryption(format!(
                 "CBOR decode cipher: {e}"
             )))
@@ -224,6 +222,7 @@ impl ThresholdMetaCipher {
 ///
 /// `key` must be 32 bytes. A random nonce is generated and returned in the
 /// [`ThresholdMetaCipher`].
+#[cfg(feature = "chacha20")]
 #[allow(deprecated)]
 pub fn encrypt_threshold_meta(
     meta: &ThresholdMetadata,
@@ -269,6 +268,7 @@ pub fn encrypt_threshold_meta(
 }
 
 /// Decrypt threshold metadata using ChaCha20-Poly1305 AEAD.
+#[cfg(feature = "chacha20")]
 #[allow(deprecated)]
 pub fn decrypt_threshold_meta(
     encrypted: &[u8],
@@ -313,10 +313,37 @@ pub fn decrypt_threshold_meta(
 }
 
 /// Generate a random 32-byte ChaCha20-Poly1305 key.
+#[cfg(feature = "chacha20")]
 pub fn generate_meta_key() -> Zeroizing<Vec<u8>> {
     let mut key = Zeroizing::new(vec![0u8; 32]);
     getrandom::fill(key.as_mut_slice()).expect("getrandom failure during meta key generation");
     key
+}
+
+/// Fallback without the `chacha20` feature: no AEAD is compiled in, so the
+/// partial and fully confidential disclosure modes fail instead of writing
+/// threshold metadata.
+#[cfg(not(feature = "chacha20"))]
+fn encrypt_threshold_meta(
+    _meta: &ThresholdMetadata,
+    _key: &[u8],
+) -> Result<(Vec<u8>, ThresholdMetaCipher), Error> {
+    Err(Error::Shares(crate::error::SharesError::MetaEncryption(
+        "threshold metadata encryption needs the `chacha20` feature".to_string(),
+    )))
+}
+
+/// Fallback without the `chacha20` feature: no AEAD is compiled in, so
+/// encrypted threshold metadata cannot be read.
+#[cfg(not(feature = "chacha20"))]
+fn decrypt_threshold_meta(
+    _encrypted: &[u8],
+    _cipher_info: &ThresholdMetaCipher,
+    _key: &[u8],
+) -> Result<ThresholdMetadata, Error> {
+    Err(Error::Shares(crate::error::SharesError::MetaEncryption(
+        "threshold metadata decryption needs the `chacha20` feature".to_string(),
+    )))
 }
 
 /// Read the disclosure mode from a Multisig. Returns Full if no attribute is present.
@@ -335,7 +362,7 @@ pub fn disclosure_mode(ms: &Multisig) -> Result<ThresholdDisclosure, Error> {
 /// Read t and n from a Multisig, decrypting if necessary.
 ///
 /// `meta_key` is the raw 32-byte symmetric key (extracted from a `Multikey` by
-/// the caller); it is required for Partial/FullConfidentialial modes.
+/// the caller); it is required for Partial/FullConfidential modes.
 pub fn read_threshold_params(
     ms: &Multisig,
     meta_key: Option<&[u8]>,
@@ -395,7 +422,7 @@ pub fn read_threshold_params(
                 ))? as usize;
             Ok((t, n))
         }
-        ThresholdDisclosure::FullConfidentialial => {
+        ThresholdDisclosure::FullConfidential => {
             let encrypted = ms.attributes.get(&AttrId::EncryptedThresholdMeta).ok_or(
                 crate::error::SharesError::MetaEncryption(
                     "missing EncryptedThresholdMeta".to_string(),
@@ -432,7 +459,7 @@ pub fn read_threshold_params(
 /// Stamp disclosure attributes onto a Multisig's attribute map.
 ///
 /// `meta_key` is the raw 32-byte symmetric key (extracted from a `Multikey` by
-/// the caller); required for Partial/FullConfidentialial modes.
+/// the caller); required for Partial/FullConfidential modes.
 pub fn stamp_disclosure_attrs(
     attributes: &mut std::collections::BTreeMap<AttrId, Vec<u8>>,
     mode: ThresholdDisclosure,
@@ -474,7 +501,7 @@ pub fn stamp_disclosure_attrs(
             );
             attributes.insert(AttrId::ThresholdDisclosure, mode.encode_into());
         }
-        ThresholdDisclosure::FullConfidentialial => {
+        ThresholdDisclosure::FullConfidential => {
             let meta_key = meta_key.ok_or(SharesError::MissingMetaKey)?;
 
             let meta = ThresholdMetadata::new(threshold as u16, limit as u16);
@@ -524,5 +551,67 @@ impl<'a> crate::views::ThresholdDisclosureView for DisclosureView<'a> {
         let mut new_ms = self.ms.clone();
         stamp_disclosure_attrs(&mut new_ms.attributes, target, t, n, meta_key)?;
         Ok(new_ms)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    /// a partial-disclosure stamp encrypts t, keeps n plaintext, and reads
+    /// back with the same key
+    #[cfg(feature = "chacha20")]
+    #[test]
+    fn test_partial_disclosure_round_trip() {
+        let key = generate_meta_key();
+        let mut attributes = BTreeMap::new();
+        stamp_disclosure_attrs(
+            &mut attributes,
+            ThresholdDisclosure::Partial,
+            3,
+            5,
+            Some(key.as_slice()),
+        )
+        .unwrap();
+        assert!(!attributes.contains_key(&AttrId::Threshold));
+        assert!(attributes.contains_key(&AttrId::EncryptedThresholdMeta));
+
+        let ms = Multisig {
+            codec: Codec::Bls12381G1ShareMsig,
+            attributes,
+            ..Default::default()
+        };
+        assert_eq!(
+            read_threshold_params(&ms, Some(key.as_slice())).unwrap(),
+            (3, 5)
+        );
+    }
+
+    /// without the `chacha20` feature the encrypted disclosure modes fail and
+    /// never write the confidential threshold in plaintext
+    #[cfg(not(feature = "chacha20"))]
+    #[test]
+    fn test_encrypted_disclosure_needs_chacha20() {
+        let key = [7u8; 32];
+        for mode in [
+            ThresholdDisclosure::Partial,
+            ThresholdDisclosure::FullConfidential,
+        ] {
+            let mut attributes = BTreeMap::new();
+            let result = stamp_disclosure_attrs(&mut attributes, mode, 3, 5, Some(&key));
+            assert!(
+                matches!(
+                    result,
+                    Err(Error::Shares(crate::error::SharesError::MetaEncryption(_)))
+                ),
+                "{mode}: {result:?}"
+            );
+            assert!(!attributes.contains_key(&AttrId::Threshold), "{mode}");
+            assert!(
+                !attributes.contains_key(&AttrId::EncryptedThresholdMeta),
+                "{mode}"
+            );
+        }
     }
 }

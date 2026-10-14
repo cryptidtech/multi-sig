@@ -1,24 +1,27 @@
 [![](https://img.shields.io/badge/made%20by-Cryptid%20Technologies-gold.svg?style=flat-square)][CRYPTID]
 [![](https://img.shields.io/badge/project-provenance-purple.svg?style=flat-square)][PROVENANCE]
 [![](https://img.shields.io/badge/project-multiformats-blue.svg?style=flat-square)][MULTIFORMATS]
-![](https://github.com/cryptidtech/multisig/actions/workflows/rust.yml/badge.svg)
+![](https://github.com/cryptidtech/multi-sig/actions/workflows/rust.yml/badge.svg)
 
 # Multisig
 
-A Rust implementation of the [multiformats][MULTIFORMATS] [multisig specification][MULTISIG]. The published crate is **`multi-sig`**. Depend on it as `multi-sig = "1.0"` in `Cargo.toml`. Import it as `multi_sig` in Rust, for example `use multi_sig::Builder;`.
+A Rust implementation of the [multiformats][MULTIFORMATS] [multisig specification][MULTISIG]. The published crate is **`multi-sig`**. Depend on it as `multi-sig = "2.0"` in `Cargo.toml`. Import it as `multi_sig` in Rust, for example `use multi_sig::Builder;`.
 
 ## Current Status
 
-This crate gives self-describing digital signature containers (`Multisig`) for 35 signature codecs. The codecs span classical, post-quantum, and hybrid schemes. It supports BLS12-381 threshold signatures with share accumulation and combination. It supports SSH signature interoperability for all classical schemes plus BLS12-381 combined and share signatures.
+This crate gives self-describing digital signature containers (`Multisig`) for 60 signature codecs and 13 signature-share codecs with the default features. The codecs span classical, post-quantum, hash-based, and hybrid schemes. It supports threshold signatures with share accumulation and combination for BLS12-381, Lamport, and Merkle-Lamport. It supports SSH signature interoperability for all classical schemes plus BLS12-381 combined and share signatures.
 
 **Supported signature families:**
 
 - **Classical:** Ed25519, secp256k1 (ECDSA), NIST P-256/P-384/P-521 (ECDSA), RSA-SHA256, BLS12-381 G1/G2
 - **Post-quantum:** ML-DSA (65/87), FN-DSA (512/1024), MAYO (1/2/3/5), SLH-DSA (all 12 parameter sets)
+- **Hash-based:** Lamport and Merkle-tree Lamport (SHA-2, SHA-3, BLAKE2, BLAKE3, SHAKE digests), XMSS-SHA2_10/16/20_256
 - **Hybrid:** Ed25519+MAYO-2, Ed25519+ML-DSA-65, Ed25519+FN-DSA-512, BLS12-381-G1+ML-DSA-65, BLS12-381-G1+FN-DSA-512, BLS12-381-G1+MAYO-1, BLS12-381-G1+MAYO-2
-- **Threshold:** BLS12-381 G1/G2 combined and share signatures with threshold disclosure modes
+- **Threshold:** BLS12-381 G1/G2 combined and share signatures with threshold disclosure modes, and Lamport and Merkle-Lamport signature shares
 
 **SSH interoperability:** Ed25519, secp256k1, NIST P-256/P-384/P-521, RSA-SHA256, and BLS12-381 G1/G2 (combined and share signatures) convert to and from OpenSSH format with the [`ssh-key`][SSHKEY] crate. Non-standard algorithms use [RFC 4251][RFC4251] "additional algorithms" names with the `@multisig` domain suffix, for example `secp256k1@multisig` and `bls12_381-g1-share@multisig`.
+
+**Optional crypto:** the BLS12-381, Lamport, and XMSS views and the threshold metadata encryption each sit behind a [Cargo feature](#cargo-features). All are on by default. With `default-features = false` the crate pulls in no signature or AEAD crate.
 
 ## Introduction
 
@@ -44,6 +47,8 @@ SIGIL (0x1239) | signature_codec | Varbytes(message) | Varuint(num_attributes) |
 
 The preferred base encoding for Multisig strings is `Base16Lower` (lowercase hex).
 
+Encode with `Vec::<u8>::from(&ms)`, which borrows the multisig instead of cloning it (the owned `From<Multisig>` also works), and decode with `Multisig::try_from(bytes.as_slice())`.
+
 ## Supported Signature Formats
 
 ### Classical Signatures
@@ -63,26 +68,36 @@ The preferred base encoding for Multisig strings is `Base16Lower` (lowercase hex
 
 | Codec | Multicodec name | SSH | Notes |
 |---|---|---|---|
-| `Mldsa65Msig` | `mldsa-65-msig` | no | ML-DSA (Dilithium) security level 65; FIPS 204 |
-| `Mldsa87Msig` | `mldsa-87-msig` | no | ML-DSA security level 87; FIPS 204 |
+| `MlDsa65Msig` | `ml-dsa-65-msig` | no | ML-DSA-65; FIPS 204 |
+| `MlDsa87Msig` | `ml-dsa-87-msig` | no | ML-DSA-87; FIPS 204 |
 | `FnDsa512Msig` | `fn-dsa-512-msig` | no | FN-DSA (Falcon) 512; FIPS 206 (draft) |
 | `FnDsa1024Msig` | `fn-dsa-1024-msig` | no | FN-DSA (Falcon) 1024; FIPS 206 (draft) |
 | `Mayo1Msig` | `mayo-1-msig` | no | MAYO-1 |
 | `Mayo2Msig` | `mayo-2-msig` | no | MAYO-2 |
 | `Mayo3Msig` | `mayo-3-msig` | no | MAYO-3 |
 | `Mayo5Msig` | `mayo-5-msig` | no | MAYO-5 |
-| `SlhdsaSha2128FMsig` | `slhdsa-sha2-128f-msig` | no | SLH-DSA (SPHINCS+) SHA-2 128f; FIPS 205 |
-| `SlhdsaSha2128SMsig` | `slhdsa-sha2-128s-msig` | no | SLH-DSA SHA-2 128s |
-| `SlhdsaSha2192FMsig` | `slhdsa-sha2-192f-msig` | no | SLH-DSA SHA-2 192f |
-| `SlhdsaSha2192SMsig` | `slhdsa-sha2-192s-msig` | no | SLH-DSA SHA-2 192s |
-| `SlhdsaSha2256FMsig` | `slhdsa-sha2-256f-msig` | no | SLH-DSA SHA-2 256f |
-| `SlhdsaSha2256SMsig` | `slhdsa-sha2-256s-msig` | no | SLH-DSA SHA-2 256s |
-| `SlhdsaShake128FMsig` | `slhdsa-shake-128f-msig` | no | SLH-DSA SHAKE 128f |
-| `SlhdsaShake128SMsig` | `slhdsa-shake-128s-msig` | no | SLH-DSA SHAKE 128s |
-| `SlhdsaShake192FMsig` | `slhdsa-shake-192f-msig` | no | SLH-DSA SHAKE 192f |
-| `SlhdsaShake192SMsig` | `slhdsa-shake-192s-msig` | no | SLH-DSA SHAKE 192s |
-| `SlhdsaShake256FMsig` | `slhdsa-shake-256f-msig` | no | SLH-DSA SHAKE 256f |
-| `SlhdsaShake256SMsig` | `slhdsa-shake-256s-msig` | no | SLH-DSA SHAKE 256s |
+| `SlhDsaSha2128FMsig` | `slh-dsa-sha2-128f-msig` | no | SLH-DSA (SPHINCS+) SHA-2 128f; FIPS 205 |
+| `SlhDsaSha2128SMsig` | `slh-dsa-sha2-128s-msig` | no | SLH-DSA SHA-2 128s |
+| `SlhDsaSha2192FMsig` | `slh-dsa-sha2-192f-msig` | no | SLH-DSA SHA-2 192f |
+| `SlhDsaSha2192SMsig` | `slh-dsa-sha2-192s-msig` | no | SLH-DSA SHA-2 192s |
+| `SlhDsaSha2256FMsig` | `slh-dsa-sha2-256f-msig` | no | SLH-DSA SHA-2 256f |
+| `SlhDsaSha2256SMsig` | `slh-dsa-sha2-256s-msig` | no | SLH-DSA SHA-2 256s |
+| `SlhDsaShake128FMsig` | `slh-dsa-shake128f-msig` | no | SLH-DSA SHAKE 128f |
+| `SlhDsaShake128SMsig` | `slh-dsa-shake128s-msig` | no | SLH-DSA SHAKE 128s |
+| `SlhDsaShake192FMsig` | `slh-dsa-shake192f-msig` | no | SLH-DSA SHAKE 192f |
+| `SlhDsaShake192SMsig` | `slh-dsa-shake192s-msig` | no | SLH-DSA SHAKE 192s |
+| `SlhDsaShake256FMsig` | `slh-dsa-shake256f-msig` | no | SLH-DSA SHAKE 256f |
+| `SlhDsaShake256SMsig` | `slh-dsa-shake256s-msig` | no | SLH-DSA SHAKE 256s |
+
+### Hash-Based Signatures
+
+None of these convert to SSH format.
+
+| Codecs | Multicodec names | Feature | Notes |
+|---|---|---|---|
+| `LamportSha3512Sig`, `LamportSha3384Sig`, `LamportSha3256Sig`, `LamportSha2512Sig`, `LamportSha2384Sig`, `LamportSha2256Sig`, `LamportBlake2B512Sig`, `LamportBlake2S256Sig`, `LamportBlake3256Sig`, `LamportShake128Sig`, `LamportShake256Sig` | `lamport-sha3-512-sig` … `lamport-shake-256-sig` | `lamport` | One-time Lamport signatures, one codec per digest; threshold shares supported |
+| `LamportMerkleSha3512Sig` … `LamportMerkleShake256Sig` (same 11 digests) | `lamport-merkle-sha3-512-sig` … `lamport-merkle-shake-256-sig` | `lamport` | Merkle-tree Lamport signatures; carry the tree `depth` attribute; threshold shares supported |
+| `XmssSha210256Msig`, `XmssSha216256Msig`, `XmssSha220256Msig` | `xmss-sha2-10-256-msig`, `xmss-sha2-16-256-msig`, `xmss-sha2-20-256-msig` | `xmss` | XMSS (RFC 8391); listed in `SIG_CODECS` only when `lamport` is also on; carry the `sig-index` leaf index attribute |
 
 ### Hybrid Signatures (Classical + Post-Quantum)
 
@@ -98,12 +113,14 @@ Hybrid signatures use a nested combiner construction. The classical component si
 | `Bls12381G1Mayo1Msig` | `bls12381-g1-mayo1-msig` | BLS12-381 G1 + MAYO-1 | no |
 | `Bls12381G1Mayo2Msig` | `bls12381-g1-mayo2-msig` | BLS12-381 G1 + MAYO-2 | no |
 
-### Threshold Signature Shares (BLS12-381)
+### Threshold Signature Shares
 
 | Codec | Multicodec name | SSH algorithm | Notes |
 |---|---|---|---|
 | `Bls12381G1ShareMsig` | `bls12_381-g1-share-msig` | `bls12_381-g1-share@multisig` | A BLS G1 partial signature from a threshold share |
 | `Bls12381G2ShareMsig` | `bls12_381-g2-share-msig` | `bls12_381-g2-share@multisig` | A BLS G2 partial signature from a threshold share |
+
+The 11 Merkle-Lamport share codecs (`LamportMerkleSha3512SigShare` … `LamportMerkleShake256SigShare`, multicodec names ending in `-sig-share`) carry Merkle-Lamport signature shares and need the `lamport` feature. `SIG_SHARE_CODECS` lists every share codec compiled in.
 
 ## Attribute IDs
 
@@ -114,13 +131,17 @@ Each Multisig carries a set of attributes identified by a `u8` code:
 | 0 | `sig-data` | all | The raw signature bytes |
 | 1 | `payload-encoding` | all (optional) | The multicodec encoding of the signed payload |
 | 2 | `scheme` | BLS | BLS scheme type: 0=Basic, 1=MessageAugmentation, 2=ProofOfPossession |
-| 3 | `threshold` | BLS shares | The threshold `t` (plaintext, Full disclosure mode) |
-| 4 | `limit` | BLS shares | The share count `n` (plaintext, Full/Partial disclosure modes) |
+| 3 | `threshold` | threshold shares | The threshold `t` (plaintext, Full disclosure mode) |
+| 4 | `limit` | threshold shares | The share count `n` (plaintext, Full/Partial disclosure modes) |
 | 5 | `share-identifier` | BLS shares | 32-byte BLS scalar identifier for this share |
-| 6 | `threshold-data` | BLS combined | Serialized `ThresholdData` — the accumulated share map |
-| 7 | `threshold-disclosure` | BLS (optional) | Disclosure mode: 0=Full, 1=Partial, 2=FullConfidentialial |
+| 6 | `threshold-data` | threshold accumulators | The accumulated shares (BLS share map, or the Lamport share-blob list) |
+| 7 | `threshold-disclosure` | BLS (optional) | Disclosure mode: 0=Full, 1=Partial, 2=FullConfidential |
 | 8 | `encrypted-threshold-meta` | BLS (optional) | AEAD-encrypted CBOR blob containing t and/or n |
 | 9 | `threshold-meta-cipher` | BLS (optional) | CBOR-encoded cipher info (codec + nonce) for decrypting #8 |
+| 10 | `sig-index` | XMSS | The one-time leaf index the signature consumed (u32 big-endian) |
+| 11 | `depth` | Merkle-Lamport | The Merkle tree depth (one byte); cross-checked against the signature data |
+
+`AttrId` parses from its name with `FromStr`, e.g. `"sig-data".parse::<AttrId>()`. `AttrId::try_from("sig-data")` still works.
 
 ## Views on the Multisig Data
 
@@ -149,7 +170,7 @@ let attrs = ViewBuilder::new(&ms).attr().build().unwrap();
 assert_eq!(attrs.scheme().unwrap(), 0);
 ```
 
-The six kinds are `attr`, `data`, `conv`, `threshold_attr`, `threshold`, and `disclosure`. Select each with `.attr()`, `.data()`, `.conv()`, `.threshold_attr()`, `.threshold()`, or `.disclosure()`. A view borrows its Multisig, so keep the Multisig alive while the view is in use. Built-in codecs dispatch through the crate-internal `views::dispatch` core. A built-in view is identical to the view the deprecated `Views` trait method returns for that codec.
+The six kinds are `attr`, `data`, `conv`, `threshold_attr`, `threshold`, and `disclosure`. Select each with `.attr()`, `.data()`, `.conv()`, `.threshold_attr()`, `.threshold()`, or `.disclosure()`. A view borrows its Multisig, so keep the Multisig alive while the view is in use. Built-in codecs dispatch through the crate-internal `views::dispatch` core.
 
 `ViewBuilder` is `Send` + `Sync` when its registered factories are. The view trait objects it returns carry no `Send`/`Sync` supertrait, so they cannot be shared across threads at the type level.
 
@@ -212,10 +233,9 @@ Built-in views always win: a factory registered for a codec that has a built-in 
 | `AttrView` | `payload_encoding()`, `scheme()` | Access the payload encoding codec and signing scheme |
 | `DataView` | `sig_bytes()` | Access the raw signature bytes |
 | `ConvView` | `to_ssh_signature()` | Convert to an OpenSSH `ssh_key::Signature` |
-| `ThresholdAttrView` | `threshold()`, `limit()`, `identifier()`, `threshold_data()` | Read threshold parameters (BLS only) |
-| `ThresholdView` | `shares()`, `shares_with_disclosure()`, `add_share()`, `add_share_with_meta()`, `combine()`, `combine_with_meta()` | Accumulate and combine threshold signature shares (BLS only) |
+| `ThresholdAttrView` | `threshold()`, `limit()`, `identifier()`, `threshold_data()` | Read threshold parameters (BLS, Lamport, Merkle-Lamport) |
+| `ThresholdView` | `shares()`, `shares_with_disclosure()`, `add_share()`, `add_share_with_meta()`, `combine()`, `combine_with_meta()` | Accumulate and combine threshold signature shares (BLS, Lamport, Merkle-Lamport) |
 | `ThresholdDisclosureView` | `disclosure_mode()`, `read_threshold_params()`, `to_disclosure()` | Read or convert the threshold disclosure mode (all codecs) |
-| `Views` (deprecated) | `attr_view()`, `data_view()`, `conv_view()`, `threshold_attr_view()`, `threshold_view()`, `disclosure_view()` | Dispatcher trait — obtain any view from a `Multisig`. **Deprecated since 1.5.0**: use `ViewBuilder` (removal planned for 2.0.0) |
 
 ### View Dispatch by Codec Family
 
@@ -232,12 +252,15 @@ Built-in views always win: a factory registered for a codec that has a built-in 
 | SLH-DSA (all 12) | `slh_dsa::View` | `slh_dsa::View` | `slh_dsa::View` | — | — |
 | Ed25519-MAYO2 | `ed25519_mayo2::View` | `ed25519_mayo2::View` | `ed25519_mayo2::View` | — | — |
 | Other hybrids | `ed25519_hybrid::View` | `ed25519_hybrid::View` | `ed25519_hybrid::View` | — | — |
+| Lamport | `lamport::View` | `lamport::View` | `lamport::View` | `lamport::View` | `lamport::View` |
+| Merkle-Lamport | `lamport_merkle::View` | `lamport_merkle::View` | `lamport_merkle::View` | `lamport_merkle::View` | `lamport_merkle::View` |
+| XMSS | `xmss::View` | `xmss::View` | `xmss::View` | — | — |
 
-Dispatch runs inside `ViewBuilder` through the crate-internal `views::dispatch` functions. The table content is unchanged from earlier releases. The `disclosure` view is codec-agnostic. It is available on all codecs.
+Dispatch runs inside `ViewBuilder` through the crate-internal `views::dispatch` functions. The `disclosure` view is codec-agnostic. It is available on all codecs.
 
 ### Copy-on-Write Semantics
 
-Operations that appear to mutate the Multisig (`add_share`, `combine`, `to_disclosure`) in fact perform a copy-on-write (CoW) operation. They return a **new** `Multisig`. The original is unchanged. This is most visible in `Builder::try_build()`:
+Operations that appear to mutate the Multisig (`add_share`, `combine`, `to_disclosure`) in fact perform a copy-on-write (CoW) operation. They return a **new** `Multisig`. The original is unchanged, so a share-accumulation loop rebinds the result:
 
 ```rust
 let mut ms = Builder::new(Codec::Bls12381G2Msig).try_build()?;
@@ -258,8 +281,8 @@ The `Builder` constructs `Multisig` objects. It is a different type from `ViewBu
 |---|---|
 | `Builder::new(codec)` | Create a builder for the given signature codec |
 | `Builder::new_from_ssh_signature(&sig)` | Construct from an OpenSSH `ssh_key::Signature` |
-| `Builder::new_from_bls_signature(&sig)` | Construct from a `blsful::Signature` (infers G1/G2 by byte length) |
-| `Builder::new_from_bls_signature_share(t, n, &share)` | Construct from a `blsful::SignatureShare` |
+| `Builder::new_from_bls_signature_with_codec(codec, &sig)` | Construct from a `blsful::Signature` with an explicit G1/G2 codec (`bls12-381` feature) |
+| `Builder::new_from_bls_signature_share_with_codec(codec, t, n, &share)` | Construct from a `blsful::SignatureShare` with an explicit codec (`bls12-381` feature) |
 | `.with_message_bytes(&msg)` | Set the message payload (makes a combined signature) |
 | `.with_signature_bytes(&data)` | Set the raw signature bytes (`AttrId::SigData`) |
 | `.with_payload_encoding(codec)` | Set the payload encoding codec |
@@ -332,7 +355,7 @@ For verification, `VerifyView::verify(sig, msg)`:
 
 ## Threshold Signatures (BLS12-381)
 
-BLS12-381 is the only signature family that supports threshold signatures in this crate. A threshold BLS signature is produced by multiple parties. Each party signs with their key share. The partial signatures are then combined into a single combined signature. The combined signature verifies against the group public key.
+BLS12-381, Lamport, and Merkle-Lamport support threshold signatures in this crate. Lamport shares are opaque blobs that embed their own GF(256) identifier, so the accumulator is a list of share blobs and `combine` hands them to `lamport_signature_plus`. The rest of this section covers BLS12-381, which interpolates over scalar share identifiers. A threshold BLS signature is produced by multiple parties. Each party signs with their key share. The partial signatures are then combined into a single combined signature. The combined signature verifies against the group public key.
 
 ### BLS Signature Schemes
 
@@ -343,6 +366,8 @@ BLS12-381 supports three signature schemes, stored as `AttrId::Scheme`:
 | `Basic` | 0 | Raw BLS. It is vulnerable to rogue-key attacks without PoP checking. |
 | `MessageAugmentation` | 1 | Prepends a domain tag to the message before signing. |
 | `ProofOfPossession` | 2 | Requires a separate PoP signature over the public key. This is the **default** and the strongest rogue-key defence. |
+
+`SchemeTypeId` parses from `"basic"`, `"message-augmentation"`, or `"proof-of-possession"` with `FromStr`.
 
 ### How Threshold Signatures Work
 
@@ -393,9 +418,9 @@ By default, threshold `t` and share count `n` are stored as **plaintext** attrib
 |---|---|---|---|---|
 | `Full` (default, 0) | plaintext attribute | plaintext attribute | everyone | everyone |
 | `Partial` (1) | encrypted (AEAD) | plaintext attribute | key-holder only | everyone (auditable) |
-| `FullConfidentialial` (2) | encrypted (AEAD) | encrypted (AEAD) | key-holder only | key-holder only |
+| `FullConfidential` (2) | encrypted (AEAD) | encrypted (AEAD) | key-holder only | key-holder only |
 
-The encrypted values are sealed with **ChaCha20-Poly1305 AEAD**. They are stored as a CBOR-encoded `ThresholdMetadata` blob in `AttrId::EncryptedThresholdMeta`. The cipher parameters (codec and nonce) are recorded in `AttrId::ThresholdMetaCipher` so the blob is self-describing for decryption. A separate **meta key** (a 32-byte symmetric `Multikey` with `Codec::Chacha20Poly1305`) is required to encrypt and decrypt the metadata.
+The encrypted values are sealed with **ChaCha20-Poly1305 AEAD**. They are stored as a CBOR-encoded `ThresholdMetadata` blob in `AttrId::EncryptedThresholdMeta`. The cipher parameters (codec and nonce) are recorded in `AttrId::ThresholdMetaCipher` so the blob is self-describing for decryption. A separate **meta key** (a 32-byte symmetric `Multikey` with `Codec::Chacha20Poly1305`) is required to encrypt and decrypt the metadata. The encrypted modes need the `chacha20` feature; without it they return `SharesError::MetaEncryption`.
 
 ### When to Use Each Mode
 
@@ -403,11 +428,11 @@ The encrypted values are sealed with **ChaCha20-Poly1305 AEAD**. They are stored
 
 - **`Partial`** — Use when the total number of participants `n` should be auditable (for example, for governance transparency) but the threshold `t` should be hidden from share holders and observers. Hiding `t` means an adversary who compromises some shares does not know how many more they need to reconstruct. The `meta_key` is required to read `t`. The value `n` is freely readable.
 
-- **`FullConfidentialial`** — Use when both `t` and `n` must be kept secret. An observer who sees a share cannot determine the group size or how many shares are needed. This is the strongest confidentiality mode. The `meta_key` is required to read both `t` and `n`.
+- **`FullConfidential`** — Use when both `t` and `n` must be kept secret. An observer who sees a share cannot determine the group size or how many shares are needed. This is the strongest confidentiality mode. The `meta_key` is required to read both `t` and `n`.
 
 ### Trade-offs
 
-| Consideration | Full | Partial | FullConfidentialial |
+| Consideration | Full | Partial | FullConfidential |
 |---|---|---|---|
 | Backward compatible | yes | yes (attribute defaults to Full if absent) | yes |
 | Observer learns `t` | yes | no | no |
@@ -417,7 +442,7 @@ The encrypted values are sealed with **ChaCha20-Poly1305 AEAD**. They are stored
 | Risk if `meta_key` lost | n/a | `t` irrecoverable | `t` and `n` irrecoverable |
 | Performance overhead | none | negligible (AEAD on ~10 bytes) | negligible |
 
-**Key management risk.** Losing the `meta_key` makes `t` (Partial) or both `t` and `n` (FullConfidentialial) irrecoverable. This prevents share combination. The `meta_key` should be stored or backed up with the existing at-rest encryption mechanisms. You can always convert back to `Full` mode (with the `meta_key`) before you lose it.
+**Key management risk.** Losing the `meta_key` makes `t` (Partial) or both `t` and `n` (FullConfidential) irrecoverable. This prevents share combination. The `meta_key` should be stored or backed up with the existing at-rest encryption mechanisms. You can always convert back to `Full` mode (with the `meta_key`) before you lose it.
 
 ### Creating Shares with a Disclosure Mode
 
@@ -434,7 +459,7 @@ let meta_mk = Builder::new(Codec::Chacha20Poly1305)
     .try_build()?;
 
 let shares = ViewBuilder::new(&mk).threshold().build()?.split_with_disclosure(3, 5,
-    ThresholdDisclosure::FullConfidentialial, Some(&meta_mk))?;
+    ThresholdDisclosure::FullConfidential, Some(&meta_mk))?;
 ```
 
 **2. Builder construction:**
@@ -453,7 +478,7 @@ let share = Builder::new(Codec::Bls12381G2ShareMsig)
 let encrypted = ViewBuilder::new(&share)
     .disclosure()
     .build()?
-    .to_disclosure(ThresholdDisclosure::FullConfidentialial, Some(&meta_mk), None)?;
+    .to_disclosure(ThresholdDisclosure::FullConfidential, Some(&meta_mk), None)?;
 ```
 
 ### Reading Threshold Parameters from Encrypted Shares
@@ -487,13 +512,13 @@ let partial = ViewBuilder::new(&full)
     .build()?
     .to_disclosure(ThresholdDisclosure::Partial, Some(&meta_mk), None)?;
 
-// Partial -> FullConfidentialial
+// Partial -> FullConfidential
 let confidential = ViewBuilder::new(&partial)
     .disclosure()
     .build()?
-    .to_disclosure(ThresholdDisclosure::FullConfidentialial, Some(&meta_mk), Some(&meta_mk))?;
+    .to_disclosure(ThresholdDisclosure::FullConfidential, Some(&meta_mk), Some(&meta_mk))?;
 
-// FullConfidentialial -> Full
+// FullConfidential -> Full
 let full_again = ViewBuilder::new(&confidential)
     .disclosure()
     .build()?
@@ -522,9 +547,31 @@ A multicodec signature format called Varsig (`0x34`) already exists. It has seri
 
 ## Cargo Features
 
+Each crypto dependency sits behind its own feature. With `default-features = false` the crate provides only the `Multisig` type, its attributes, the view traits, and the `ViewBuilder`, with no cryptographic crates.
+
 | Feature | Default | Description |
 |---|---|---|
+| `bls12-381` | yes | BLS12-381 signature and share views, share combining, and the `Builder::new_from_bls_*` constructors (`blsful`) |
+| `chacha20` | yes | ChaCha20-Poly1305 encryption of threshold metadata (`encrypt_threshold_meta`, `decrypt_threshold_meta`, `generate_meta_key`); without it the partial and fully confidential disclosure modes return `SharesError::MetaEncryption` |
+| `lamport` | yes | Lamport and Merkle-Lamport signature views (`lamport_signature_plus` and its hash crates) |
+| `xmss` | yes | XMSS signature views |
 | `serde` | yes | Serde serialization for `Multisig` and `AttrId` |
+
+A codec appears in `SIG_CODECS` and `SIG_SHARE_CODECS` only when its views are compiled in.
+
+## Upgrading from 1.x
+
+2.0 moves the crypto dependencies behind features. The default build keeps every view, so `multi-sig = "2.0"` behaves as 1.x did.
+
+- If you used `default-features = false` only to drop serde, add back what you use: `bls12-381` for the BLS views and `Builder::new_from_bls_*`, `chacha20` for `encrypt_threshold_meta`, `decrypt_threshold_meta`, and `generate_meta_key`.
+- Without `chacha20`, the `Partial` and `FullConfidential` disclosure modes return `SharesError::MetaEncryption` instead of writing the threshold in plaintext.
+- Without `bls12-381`, the BLS12-381 G1 and G2 combined codecs leave `SIG_CODECS` and the two BLS share codecs leave `SIG_SHARE_CODECS`, so each array is two entries shorter. This matches how the `lamport` and `xmss` codecs already behaved.
+- `Builder::new_from_bls_signature` and `Builder::new_from_bls_signature_share` are gone. Use `new_from_bls_signature_with_codec(codec, &sig)` and `new_from_bls_signature_share_with_codec(codec, t, n, &share)`.
+- `ThresholdDisclosure::FullConfidentialial` is renamed `FullConfidential`. The wire value (2) is unchanged; its display string is now `full-confidential`.
+- The deprecated `Views` trait is gone. Replace `ms.attr_view()` with `ViewBuilder::new(&ms).attr().build()`, and likewise for the other five view kinds.
+- Encode by reference with `Vec::<u8>::from(&ms)` to avoid cloning.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ## Links
 
@@ -542,4 +589,4 @@ A multicodec signature format called Varsig (`0x34`) already exists. It has seri
 [MULTISIG]: https://github.com/cryptidtech/provenance-specifications/blob/main/specifications/multisig.md
 [SSHKEY]: https://crates.io/crates/ssh-key
 [RFC4251]: https://www.rfc-editor.org/rfc/rfc4251.html#page-11
-[MULTIKEY]: https://github.com/cryptidtech/multi-key.git
+[MULTIKEY]: https://github.com/cryptidtech/multi-key

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+use crate::ms::encode_varbytes_into;
 use crate::{
     AttrId, AttrView, Builder, ConvView, DataView, Error, Multisig, ThresholdAttrView,
     ThresholdView,
@@ -148,16 +149,24 @@ impl<'a> TryDecodeFrom<'a> for SchemeTypeId {
     }
 }
 
-impl TryFrom<&str> for SchemeTypeId {
-    type Error = Error;
+impl std::str::FromStr for SchemeTypeId {
+    type Err = Error;
 
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
             "basic" => Ok(Self::Basic),
             "message-augmentation" => Ok(Self::MessageAugmentation),
             "proof-of-possession" => Ok(Self::ProofOfPossession),
             _ => Err(SharesError::InvalidShareTypeName(s.to_string()).into()),
         }
+    }
+}
+
+impl TryFrom<&str> for SchemeTypeId {
+    type Error = Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        s.parse()
     }
 }
 
@@ -182,7 +191,7 @@ impl From<SigCombined> for Vec<u8> {
         // add in the signature type id
         v.append(&mut val.0.into());
         // add in the signature bytes
-        v.append(&mut Varbytes::new(val.1.clone()).into());
+        encode_varbytes_into(&mut v, &val.1);
         v
     }
 }
@@ -235,7 +244,7 @@ impl From<SigShare> for Vec<u8> {
         // add in the share type id
         v.append(&mut val.3.into());
         // add in the share data
-        v.append(&mut Varbytes::new(val.4.clone()).into());
+        encode_varbytes_into(&mut v, &val.4);
         v
     }
 }
@@ -301,8 +310,8 @@ impl From<ThresholdData> for Vec<u8> {
         // add in the number of sig shares
         v.append(&mut Varuint(val.0.len()).into());
         // add in the sig shares
-        val.0.iter().for_each(|(_, share)| {
-            v.append(&mut share.clone().into());
+        val.0.into_values().for_each(|share| {
+            v.append(&mut share.into());
         });
         v
     }
@@ -1020,5 +1029,28 @@ impl<'a> ThresholdView for View<'a> {
             }
             _ => Err(Error::UnsupportedAlgorithm(self.ms.codec.to_string())),
         }
+    }
+}
+
+#[cfg(test)]
+mod scheme_type_id_tests {
+    use super::*;
+
+    /// every scheme name parses back to its id through `FromStr` and the
+    /// delegating `TryFrom<&str>`, and an unknown name is rejected
+    #[test]
+    fn test_from_str_round_trip() {
+        for id in [
+            SchemeTypeId::Basic,
+            SchemeTypeId::MessageAugmentation,
+            SchemeTypeId::ProofOfPossession,
+        ] {
+            assert!(id.as_str().parse::<SchemeTypeId>().unwrap() == id, "{id}");
+            assert!(SchemeTypeId::try_from(id.as_str()).unwrap() == id, "{id}");
+        }
+        assert!(matches!(
+            "no-such-scheme".parse::<SchemeTypeId>(),
+            Err(Error::Shares(SharesError::InvalidShareTypeName(_)))
+        ));
     }
 }

@@ -6,6 +6,8 @@
 //! its built-in view and reports `AttributesError::UnsupportedCodec` with that
 //! codec on fallthrough.
 
+#[cfg(feature = "bls12-381")]
+use crate::views::bls12381;
 #[cfg(feature = "xmss")]
 use crate::views::xmss;
 #[cfg(feature = "lamport")]
@@ -15,8 +17,8 @@ use crate::{
     ThresholdView,
     error::AttributesError,
     views::{
-        DisclosureView, bls12381, ed25519, ed25519_hybrid, ed25519_mayo2, fn_dsa, mayo, ml_dsa,
-        nist_p, rsa, secp256k1, slh_dsa,
+        DisclosureView, ed25519, ed25519_hybrid, ed25519_mayo2, fn_dsa, mayo, ml_dsa, nist_p, rsa,
+        secp256k1, slh_dsa,
     },
 };
 use multi_codec::Codec;
@@ -27,6 +29,7 @@ use multi_codec::Codec;
 /// `ms` when no built-in view supports the codec.
 pub(crate) fn dispatch_attr_view(ms: &Multisig) -> Result<Box<dyn AttrView + '_>, Error> {
     match ms.codec {
+        #[cfg(feature = "bls12-381")]
         Codec::Bls12381G1Msig
         | Codec::Bls12381G2Msig
         | Codec::Bls12381G1ShareMsig
@@ -121,6 +124,7 @@ pub(crate) fn dispatch_attr_view(ms: &Multisig) -> Result<Box<dyn AttrView + '_>
 /// `ms` when no built-in view supports the codec.
 pub(crate) fn dispatch_data_view(ms: &Multisig) -> Result<Box<dyn DataView + '_>, Error> {
     match ms.codec {
+        #[cfg(feature = "bls12-381")]
         Codec::Bls12381G1Msig
         | Codec::Bls12381G2Msig
         | Codec::Bls12381G1ShareMsig
@@ -215,6 +219,7 @@ pub(crate) fn dispatch_data_view(ms: &Multisig) -> Result<Box<dyn DataView + '_>
 /// `ms` when no built-in view supports the codec.
 pub(crate) fn dispatch_conv_view(ms: &Multisig) -> Result<Box<dyn ConvView + '_>, Error> {
     match ms.codec {
+        #[cfg(feature = "bls12-381")]
         Codec::Bls12381G1Msig
         | Codec::Bls12381G2Msig
         | Codec::Bls12381G1ShareMsig
@@ -312,6 +317,7 @@ pub(crate) fn dispatch_threshold_attr_view(
     ms: &Multisig,
 ) -> Result<Box<dyn ThresholdAttrView + '_>, Error> {
     match ms.codec {
+        #[cfg(feature = "bls12-381")]
         Codec::Bls12381G1Msig
         | Codec::Bls12381G2Msig
         | Codec::Bls12381G1ShareMsig
@@ -373,6 +379,7 @@ pub(crate) fn dispatch_threshold_attr_view(
 /// `AttributesError::UnsupportedCodec` with the codec carried by `ms`.
 pub(crate) fn dispatch_threshold_view(ms: &Multisig) -> Result<Box<dyn ThresholdView + '_>, Error> {
     match ms.codec {
+        #[cfg(feature = "bls12-381")]
         Codec::Bls12381G1Msig | Codec::Bls12381G2Msig => {
             Ok(Box::new(bls12381::View::try_from(ms)?))
         }
@@ -428,9 +435,8 @@ pub(crate) fn dispatch_threshold_view(ms: &Multisig) -> Result<Box<dyn Threshold
 
 /// Provide an interface for threshold disclosure mode operations
 ///
-/// The disclosure view is codec-agnostic and always available. The result
-/// mirrors the `Views` trait method so all dispatch functions share one call
-/// shape.
+/// The disclosure view is codec-agnostic and always available. It returns a
+/// `Result` so all dispatch functions share one call shape.
 #[allow(clippy::unnecessary_wraps)]
 pub(crate) fn dispatch_disclosure_view(
     ms: &Multisig,

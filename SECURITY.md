@@ -6,7 +6,7 @@ The `multi-sig` crate gives self-describing digital signatures. It follows the m
 
 ## std-only Status
 
-This crate is std-only. It depends on `std::collections::BTreeMap`, `std::fmt`, and `unsigned-varint` with the `std` feature. The crypto dependency stack (`blsful`, `ssh-key`, `chacha20poly1305`) also requires std. A `no_std` conversion is not planned for this crate.
+This crate is std-only. It depends on `std::collections::BTreeMap`, `std::fmt`, and `unsigned-varint` with the `std` feature. The crypto dependency stack (`ssh-key`, plus `blsful` with the `bls12-381` feature and `chacha20poly1305` with the `chacha20` feature) also requires std. A `no_std` conversion is not planned for this crate.
 
 ## Release-Candidate Dependencies
 
@@ -14,7 +14,7 @@ This crate depends on the following release-candidate (RC) crate:
 
 - `ssh-key = "0.7.0-rc.11"` — SSH key and signature encoding
 
-The `blsful` dependency is now on a stable release (`4.0.0`). The `vsss-rs` crate is a transitive dependency via `blsful`. It resolved to the stable release `6.0.1` in this version.
+The optional `blsful` dependency (`bls12-381` feature) is on a stable release (`4.1.0`). The `vsss-rs` crate is a transitive dependency via `blsful`. It resolved to the stable release `6.0.1` in this version.
 
 The `ssh-key` crate is on an RC version. No stable release exists at the time of writing. The crate keeps it on RC for three reasons:
 
@@ -37,11 +37,11 @@ Exceeding any cap returns a clean `Err` (`Error::TooManyAttributes`, `Error::Inp
 
 ## BLS12-381 Codec Inference
 
-The deprecated `Builder::new_from_bls_signature` and `Builder::new_from_bls_signature_share` constructors infer the BLS12-381 codec (G1 vs G2) from the compressed-point byte length (48 bytes to G1, 96 bytes to G2). This is a heuristic, not cryptographic binding. Prefer `new_from_bls_signature_with_codec` and `new_from_bls_signature_share_with_codec`. They take an explicit codec parameter.
+`Builder::new_from_bls_signature_with_codec` and `Builder::new_from_bls_signature_share_with_codec` take the BLS12-381 codec (G1 or G2) from the caller. The constructors that inferred it from the compressed-point byte length were removed in 2.0.0, because a length heuristic cannot bind the codec to the curve.
 
 ## Memory Safety
 
-- No unsafe code. `#![deny(unsafe_code)]` is enforced at compile time.
+- No unsafe code. `unsafe_code = "deny"` in the `[lints.rust]` table of `Cargo.toml` enforces it at compile time for every target.
 - Input validation. All decode paths validate lengths, attribute counts, and codec identifiers.
 
 ## Reporting Vulnerabilities

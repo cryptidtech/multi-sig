@@ -11,14 +11,6 @@ mod tests {
     use multi_trait::Null;
     use serde_test::{Configure, Token, assert_tokens};
 
-    /// Serialize a value to CBOR bytes using `ciborium` (replaces the
-    /// unmaintained `serde_cbor` dev-dependency).
-    fn cbor_to_vec<T: serde::Serialize>(value: &T) -> Vec<u8> {
-        let mut buf = Vec::new();
-        ciborium::into_writer(value, &mut buf).expect("CBOR serialize");
-        buf
-    }
-
     #[test]
     fn test_ed25519_serde_compact() {
         let ms = Builder::new(Codec::Eddsa)
@@ -101,8 +93,8 @@ mod tests {
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let v = cbor_to_vec(&ms1);
-        let ms2: Multisig = ciborium::from_reader(v.as_slice()).unwrap();
+        let v = serde_cbor_2::to_vec(&ms1).unwrap();
+        let ms2: Multisig = serde_cbor_2::from_slice(&v).unwrap();
         assert_eq!(ms1, ms2);
     }
 
@@ -188,11 +180,12 @@ mod tests {
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let v = cbor_to_vec(&ms1);
-        let ms2: Multisig = ciborium::from_reader(v.as_slice()).unwrap();
+        let v = serde_cbor_2::to_vec(&ms1).unwrap();
+        let ms2: Multisig = serde_cbor_2::from_slice(&v).unwrap();
         assert_eq!(ms1, ms2);
     }
 
+    #[cfg(feature = "bls12-381")]
     #[test]
     fn test_bls12381g1_serde_compact() {
         /*
@@ -268,6 +261,7 @@ mod tests {
         )
     }
 
+    #[cfg(feature = "bls12-381")]
     #[test]
     fn test_bls12381g1_serde_json() {
         let ms1 = Builder::new(Codec::Bls12381G1Msig)
@@ -279,17 +273,19 @@ mod tests {
         assert_eq!(ms1, ms2);
     }
 
+    #[cfg(feature = "bls12-381")]
     #[test]
     fn test_bls12381g1_serde_cbor() {
         let ms1 = Builder::new(Codec::Bls12381G1Msig)
             .with_signature_bytes(&[0u8; 64])
             .try_build()
             .unwrap();
-        let v = cbor_to_vec(&ms1);
-        let ms2: Multisig = ciborium::from_reader(v.as_slice()).unwrap();
+        let v = serde_cbor_2::to_vec(&ms1).unwrap();
+        let ms2: Multisig = serde_cbor_2::from_slice(&v).unwrap();
         assert_eq!(ms1, ms2);
     }
 
+    #[cfg(feature = "bls12-381")]
     #[test]
     fn test_bls12381g1_share_serde_compact() {
         let ms = Builder::new(Codec::Bls12381G1Msig)
@@ -412,8 +408,8 @@ mod tests {
         .unwrap()
         .to_inner();
 
-        let v = cbor_to_vec(&ms1);
-        let ms2: Multisig = ciborium::from_reader(v.as_slice()).unwrap();
+        let v = serde_cbor_2::to_vec(&ms1).unwrap();
+        let ms2: Multisig = serde_cbor_2::from_slice(&v).unwrap();
         assert_eq!(ms1, ms2);
     }
 
@@ -449,5 +445,37 @@ mod tests {
     fn test_encoded_null_multisig_serde_readable() {
         let ms: EncodedMultisig = Multisig::null().into();
         assert_tokens(&ms.readable(), &[Token::BorrowedStr("fb924000000")]);
+    }
+
+    /// `AttrId` deserializes from every string token (serde forwards
+    /// borrowed and owned strings to `visit_str`) and from its `u8` code
+    #[test]
+    fn test_attrid_deserialize_all_token_forms() {
+        use crate::AttrId;
+        use serde::{
+            Deserialize,
+            de::IntoDeserializer,
+            de::value::{BorrowedStrDeserializer, Error, StrDeserializer, StringDeserializer},
+        };
+        let from_str = AttrId::deserialize(StrDeserializer::<Error>::new("sig-data"));
+        assert!(from_str.ok() == Some(AttrId::SigData));
+        let from_borrowed = AttrId::deserialize(BorrowedStrDeserializer::<Error>::new("sig-data"));
+        assert!(from_borrowed.ok() == Some(AttrId::SigData));
+        let from_string =
+            AttrId::deserialize(StringDeserializer::<Error>::new("sig-data".to_string()));
+        assert!(from_string.ok() == Some(AttrId::SigData));
+        let from_u8 = AttrId::deserialize(IntoDeserializer::<Error>::into_deserializer(11u8));
+        assert!(from_u8.ok() == Some(AttrId::Depth));
+    }
+
+    /// an unknown `AttrId` name or code surfaces the crate error message
+    #[test]
+    fn test_attrid_deserialize_errors() {
+        use crate::AttrId;
+        use serde_test::assert_de_tokens_error;
+        let name_err = AttrId::try_from("bogus").err().unwrap().to_string();
+        assert_de_tokens_error::<AttrId>(&[Token::String("bogus")], &name_err);
+        let code_err = AttrId::try_from(255u8).err().unwrap().to_string();
+        assert_de_tokens_error::<AttrId>(&[Token::U8(255)], &code_err);
     }
 }
