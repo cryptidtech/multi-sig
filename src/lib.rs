@@ -5,15 +5,22 @@
 //!
 //! ## Overview
 //!
-//! This crate provides multisig functionality for creating and managing self-describing
-//! digital signatures with support for multiple signature schemes including Ed25519,
-//! Secp256k1, and BLS12-381.
+//! This crate provides multisig functionality for creating and managing
+//! self-describing digital signatures. A [`Multisig`] holds the signature
+//! codec, an optional in-band message, and a set of attributes; views give
+//! typed, per-scheme access to them. Signing and verifying live in the
+//! companion `multi-key` crate.
 //!
 //! ## Supported Signature Schemes
 //!
-//! - **Ed25519** - Fast, secure elliptic curve signatures
-//! - **Secp256k1** - Bitcoin/Ethereum curve signatures
-//! - **BLS12-381** - Pairing-based signatures with aggregation support
+//! - **Classical:** Ed25519, secp256k1, NIST P-256/P-384/P-521, RSA-SHA256,
+//!   BLS12-381 G1/G2
+//! - **Post-quantum:** ML-DSA, FN-DSA, MAYO, SLH-DSA
+//! - **Hash-based:** Lamport, Merkle-tree Lamport, XMSS
+//! - **Hybrid:** Ed25519 or BLS12-381 G1 combined with a post-quantum scheme
+//! - **Threshold:** BLS12-381, Lamport, and Merkle-Lamport signature shares
+//!
+//! [`SIG_CODECS`] and [`SIG_SHARE_CODECS`] list the codecs compiled in.
 //!
 //! ## Quick Start
 //!
@@ -23,9 +30,9 @@
 //! use multi_sig::Builder;
 //! use multi_codec::Codec;
 //!
-//! // Create a signature with Ed25519
-//! let sig_data = vec![0u8; 64]; // Ed25519 signature (64 bytes)
-//! let multisig = Builder::new(Codec::Ed25519Pub)
+//! // Wrap a 64-byte Ed25519 signature
+//! let sig_data = vec![0u8; 64];
+//! let multisig = Builder::new(Codec::EddsaMsig)
 //!     .with_signature_bytes(&sig_data)
 //!     .try_build()
 //!     .unwrap();
@@ -38,13 +45,13 @@
 //! use multi_codec::Codec;
 //!
 //! let sig_data = vec![0u8; 64];
-//! let ms1 = Builder::new(Codec::Ed25519Pub)
+//! let ms1 = Builder::new(Codec::EddsaMsig)
 //!     .with_signature_bytes(&sig_data)
 //!     .try_build()
 //!     .unwrap();
 //!
-//! // Encode to bytes
-//! let bytes: Vec<u8> = ms1.clone().into();
+//! // Encode to bytes; encoding by reference does not clone the multisig
+//! let bytes: Vec<u8> = (&ms1).into();
 //!
 //! // Decode from bytes
 //! let ms2 = Multisig::try_from(bytes.as_ref()).unwrap();
@@ -78,6 +85,18 @@
 //!
 //! ## Features
 //!
+//! Each crypto dependency sits behind its own feature, all enabled by
+//! default. With `default-features = false` the crate provides only the
+//! [`Multisig`] type, its attributes, the view traits, and the
+//! [`ViewBuilder`], with no cryptographic crates.
+//!
+//! - **`bls12-381`** (default): BLS12-381 signature and share views, share
+//!   combining, and the `Builder::new_from_bls_*` constructors (`blsful`)
+//! - **`chacha20`** (default): ChaCha20-Poly1305 encryption of threshold
+//!   metadata for the partial and fully confidential disclosure modes;
+//!   without it those modes return `SharesError::MetaEncryption`
+//! - **`lamport`** (default): Lamport and Merkle-Lamport signature views
+//! - **`xmss`** (default): XMSS signature views
 //! - **`serde`** (default): Enables serde serialization support
 //!
 //! ## Thread Safety
@@ -85,74 +104,6 @@
 //! Most types are `Send + Sync`. A [`ViewBuilder`] is `Send + Sync` when its
 //! registered factories are. The returned view trait objects carry no
 //! `Send`/`Sync` supertrait.
-
-#![warn(missing_docs)]
-#![deny(
-    unsafe_code,
-    trivial_casts,
-    trivial_numeric_casts,
-    unused_import_braces,
-    unused_qualifications
-)]
-// Pedantic/nursery lints are enabled at the workspace level via
-// `[lints.clippy]` in Cargo.toml. The following allows suppress stylistic
-// lints that would require large-scale churn for minimal security benefit.
-// Each is reviewed individually.
-#![allow(
-    // doc-markdown wrapping common terms in backticks is stylistic
-    clippy::doc_markdown,
-    // elidable_lifetime_names: explicit lifetimes aid readability
-    clippy::elidable_lifetime_names,
-    // missing_errors_doc: public APIs are documented; this is noisy on impl
-    // blocks and trait impls
-    clippy::missing_errors_doc,
-    // missing_panics_doc: we avoid panics; where they exist they are documented
-    clippy::missing_panics_doc,
-    // must_use_candidate: too noisy on every function returning Result
-    clippy::must_use_candidate,
-    // return_self_not_must_use: builder pattern returns self by design
-    clippy::return_self_not_must_use,
-    // use_self: causes churn in match arms on large enums
-    clippy::use_self,
-    // semicolon_if_nothing_returned: stylistic preference
-    clippy::semicolon_if_nothing_returned,
-    // or_fun_call: false positives for cheap constructors like BTreeMap::new
-    clippy::or_fun_call,
-    // missing_const_for_fn: many functions can't be const due to trait bounds
-    clippy::missing_const_for_fn,
-    // multiple_crate_versions: blsful pulls in duplicate versions (tracked)
-    clippy::multiple_crate_versions,
-    // too_many_lines: large match arms are inherent to this crate
-    clippy::too_many_lines,
-    // option_if_let_else: sometimes less readable than if-let
-    clippy::option_if_let_else,
-    // needless_for_each: false positives in test code
-    clippy::needless_for_each,
-    // single_match_else: single-arm match with else is clearer in context
-    clippy::single_match_else,
-    // uninlined_format_args: stylistic; format strings are clear as-is
-    clippy::uninlined_format_args,
-    // cast_possible_truncation: intentional in codec conversions
-    clippy::cast_possible_truncation,
-    // redundant_pub_crate: needed for crate-internal module visibility
-    clippy::redundant_pub_crate,
-    // redundant_clone: false positives where clone is needed for ownership
-    clippy::redundant_clone,
-    // items_after_statements: module-level items are ordered logically
-    clippy::items_after_statements,
-    // if_not_else: stylistic
-    clippy::if_not_else,
-    // explicit_iter_loop: into_iter() is idiomatic
-    clippy::explicit_iter_loop,
-    // enum_glob_use: glob imports of enums are used judiciously
-    clippy::enum_glob_use,
-    // branches_sharing_code: false positives in complex match arms
-    clippy::branches_sharing_code,
-    // too_long_first_doc_paragraph: crate-level doc paragraph length
-    clippy::too_long_first_doc_paragraph,
-    // unnecessary_semicolon: false positive
-    clippy::unnecessary_semicolon,
-)]
 
 /// Errors produced by this library
 pub mod error;
@@ -178,8 +129,10 @@ pub mod views;
 pub use views::{
     AttrView, ConvView, DataView, MAX_THRESHOLD_PARTICIPANTS, ThresholdAttrView,
     ThresholdDisclosure, ThresholdDisclosureView, ThresholdMetaCipher, ThresholdMetadata,
-    ThresholdView, decrypt_threshold_meta, encrypt_threshold_meta, generate_meta_key,
+    ThresholdView,
 };
+#[cfg(feature = "chacha20")]
+pub use views::{decrypt_threshold_meta, encrypt_threshold_meta, generate_meta_key};
 
 /// Builder-pattern view creation
 pub use views::builder::{
@@ -187,11 +140,6 @@ pub use views::builder::{
     LocalDisclosureFn, LocalThresholdAttrFn, LocalThresholdFn, ThresholdAttrKind, ThresholdKind,
     Unselected, ViewBuilder, ViewKind,
 };
-
-// The `Views` trait is deprecated; this re-export keeps source compatibility
-// for the 1.x line.
-#[allow(deprecated)]
-pub use views::Views;
 
 /// Merkle-tree Lamport signature view
 #[cfg(feature = "lamport")]
@@ -207,7 +155,7 @@ pub mod serde;
 /// use multi_sig::prelude::*;
 ///
 /// let sig_data = vec![0u8; 64];
-/// let ms = Builder::new(Codec::Ed25519Pub)
+/// let ms = Builder::new(Codec::EddsaMsig)
 ///     .with_signature_bytes(&sig_data)
 ///     .try_build()
 ///     .unwrap();

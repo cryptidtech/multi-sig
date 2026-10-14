@@ -42,7 +42,7 @@ impl ser::Serialize for Multisig {
             ss.serialize_field("attributes", &attributes)?;
             ss.end()
         } else {
-            let v: Vec<u8> = self.clone().into();
+            let v: Vec<u8> = self.into();
             serializer.serialize_bytes(v.as_slice())
         }
     }

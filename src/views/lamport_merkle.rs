@@ -12,6 +12,7 @@
 //! `depth` attribute (one raw byte), cross-checked against the depth byte at
 //! offset 0 of each `MtSignatureShare` blob.
 
+use crate::ms::encode_varbytes_into;
 use crate::{
     AttrId, AttrView, Builder, ConvView, DataView, Error, Multisig, ThresholdAttrView,
     ThresholdView,
@@ -141,7 +142,7 @@ fn combine_blobs(codec: Codec, blobs: &[Vec<u8>]) -> Result<(Vec<u8>, u8), Error
 fn encode_shares(blobs: &[Vec<u8>]) -> Vec<u8> {
     let mut out: Vec<u8> = Varuint(blobs.len()).into();
     for blob in blobs {
-        out.append(&mut Varbytes::new(blob.clone()).into());
+        encode_varbytes_into(&mut out, blob);
     }
     out
 }

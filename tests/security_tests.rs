@@ -41,7 +41,8 @@ fn test_truncated_data() {
 /// Test empty bytes
 #[test]
 fn test_empty_bytes() {
-    let result = Multisig::try_from(&[] as &[u8]);
+    let empty: &[u8] = &[];
+    let result = Multisig::try_from(empty);
     assert!(result.is_err());
 }
 

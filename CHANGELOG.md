@@ -5,6 +5,55 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-14
+
+### Added
+
+- The `bls12-381` feature. It gates the `views::bls12381` module, the BLS12-381 view dispatch, the BLS ssh signature conversions in `Builder::new_from_ssh_signature`, and the `Builder::new_from_bls_*` constructors, and it pulls in `blsful`.
+- The `chacha20` feature. It gates `encrypt_threshold_meta`, `decrypt_threshold_meta`, and `generate_meta_key`, and pulls in `chacha20poly1305`, `getrandom`, and `zeroize`.
+- With `default-features = false` the crate depends on no signature or AEAD crate. It provides the `Multisig` type, its attributes, the view traits, `ViewBuilder`, the threshold metadata types, and the data-only views (Ed25519, secp256k1, NIST P, RSA, SLH-DSA, ML-DSA, FN-DSA, MAYO, and the hybrids).
+- Tests for the partial-disclosure round trip and for the disclosure modes without `chacha20`.
+- `FromStr` for `AttrId` and `SchemeTypeId`. The existing `TryFrom<&str>` impls now delegate to it, so `"sig-data".parse::<AttrId>()` works and the old calls are unchanged. This clears the `clippy::try_from_instead_of_from_str` errors that failed `cargo clippy -- -D warnings`.
+- `impl From<&Multisig> for Vec<u8>` encodes without cloning. The owned `From<Multisig>` delegates to it, and binary serde serialization uses it instead of cloning the multisig.
+
+### Changed
+
+- **Breaking:** the default feature set is now `bls12-381`, `chacha20`, `lamport`, `serde`, and `xmss`. A build with `default-features = false` loses the BLS constructors, BLS views, and the threshold metadata encryption functions; add the features you use.
+- **Breaking:** without `bls12-381`, the BLS12-381 combined and share codecs leave `SIG_CODECS` and `SIG_SHARE_CODECS`, so the arrays shrink by two entries each. This matches how the `lamport` and `xmss` codecs already behave.
+- Without `chacha20`, `stamp_disclosure_attrs` and `read_threshold_params` return `SharesError::MetaEncryption` for the partial and fully confidential disclosure modes. The confidential threshold is never written in plaintext.
+- The `xmss` feature no longer pulls in a crate. The XMSS views carry signature bytes only.
+- Removed redundant copies on the encode and decode paths: message and attribute bytes are written straight into the output instead of being cloned into a `Varbytes` first, decoded attributes are moved instead of cloned, the `Builder` setters no longer copy each attribute twice, and binary serde deserialization decodes from the input bytes directly. In paired benchmarks against 1.6.0 on an idle machine, `multisig_to_bytes` is about 26% faster, `Builder` construction about 20% faster, and a full roundtrip 29–38% faster; decoding is unchanged within noise.
+- Re-enabled `clippy::redundant_clone`.
+- Fixed four redundant intra-doc link targets so `cargo doc` builds with `RUSTDOCFLAGS="-D warnings"`.
+- Moved the crate-level lint settings from `lib.rs` into the `[lints]` table in `Cargo.toml`, so they now apply to tests and benches as well as the library. Fixed the one trivial cast in `tests/security_tests.rs` that this exposed.
+- **Breaking:** renamed `ThresholdDisclosure::FullConfidentialial` to `ThresholdDisclosure::FullConfidential`, fixing the typo. The encoded value (2) is unchanged, so existing shares decode as before; `as_str()` and `Display` now return `full-confidential`.
+- `ThresholdMetadata` and `ThresholdMetaCipher` CBOR encoding uses `serde_cbor_2` instead of `ciborium`. The bytes are identical: blobs written by 1.6.0 decode unchanged, and 1.6.0 decodes blobs written by 2.0.0.
+
+### Removed
+
+- **Breaking:** `Builder::new_from_bls_signature` and `Builder::new_from_bls_signature_share`, deprecated since 1.0.7. They inferred G1 or G2 from the byte length. Use `new_from_bls_signature_with_codec` and `new_from_bls_signature_share_with_codec`, which take the codec as their first argument.
+- **Breaking:** the `Views` trait and `impl Views for Multisig`, deprecated since 1.5.0. Use `ViewBuilder` instead: `ms.attr_view()` becomes `ViewBuilder::new(&ms).attr().build()`, and likewise for `data`, `conv`, `threshold_attr`, `threshold`, and `disclosure`.
+
+### Fixed
+
+- Enabling `lamport` without `xmss` failed to compile, because `SIG_CODECS` had a fixed length of 60 while three entries were gated on `xmss`. The array lengths are now derived from the enabled features.
+
+### Dependencies
+
+- `blsful`, `chacha20poly1305`, `getrandom`, and `zeroize` are now optional.
+- Removed the unused `elliptic-curve` and `xmss` dependencies.
+- `ssh-key` now enables only `alloc`. The `ecdsa` and `ed25519` features were never used by this crate.
+- Replaced `ciborium` with `serde_cbor_2`.
+- Sorted the keys in every `Cargo.toml` section and dropped a stale comment about a local `multi-codec` build.
+
+### Documentation
+
+- README codec tables now use the real `Codec` variant names (`MlDsa65Msig`, `SlhDsaSha2128FMsig`, …) and multicodec names (`ml-dsa-65-msig`, `slh-dsa-sha2-128f-msig`, …). The old tables had both wrong.
+- README now covers the 25 Lamport, Merkle-Lamport, and XMSS codecs, the 11 Merkle-Lamport share codecs, the `sig-index` and `depth` attributes, and Lamport and Merkle-Lamport threshold support. It previously described threshold signatures as BLS-only and counted 35 codecs; the default build has 60 signature and 13 share codecs.
+- README lists the `_with_codec` BLS constructors, adds an "Upgrading from 1.x" section, and fixes the CI badge and multi-key links.
+- The crate-level docs list every supported signature family instead of only Ed25519, secp256k1, and BLS12-381, and the examples build with `Codec::EddsaMsig` instead of the key codec `Codec::Ed25519Pub`.
+- SECURITY.md reflects `blsful` 4.1.0 and the `[lints.rust]` `unsafe_code = "deny"` setting.
+
 ## [1.6.0] - 2026-10-08
 
 ### Changed

@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Views over a [`Multisig`](crate::Multisig): abstract, algorithm-specific
-//! interfaces over the attributes of a signature. The per-codec modules
-//! implement the six view traits. The
-//! [`threshold_meta`](crate::views::threshold_meta) module holds the
-//! disclosure modes and the encrypted threshold metadata helpers.
+//! Views over a [`Multisig`]: abstract, algorithm-specific interfaces over
+//! the attributes of a signature. The per-codec modules implement the six
+//! view traits. The [`threshold_meta`] module holds the disclosure modes and
+//! the encrypted threshold metadata helpers.
 //!
-//! Construct views with
-//! [`ViewBuilder`](crate::views::builder::ViewBuilder): a fluent kind
-//! selector plus optional local-codec factories for custom signature
-//! schemes. The deprecated [`Views`] trait delegates to the same internal
-//! dispatch core the builder uses.
+//! Construct views with [`ViewBuilder`](crate::views::builder::ViewBuilder):
+//! a fluent kind selector plus optional local-codec factories for custom
+//! signature schemes.
 use crate::{Error, Multisig};
 use multi_codec::Codec;
 
 /// BLS12 381 G1/G2 signature implementation
+#[cfg(feature = "bls12-381")]
 pub mod bls12381;
 /// Builder-pattern construction of the view types
 pub mod builder;
@@ -49,9 +47,10 @@ pub mod slh_dsa;
 pub mod threshold_meta;
 pub use threshold_meta::{
     DisclosureView, MAX_THRESHOLD_PARTICIPANTS, ThresholdDisclosure, ThresholdMetaCipher,
-    ThresholdMetadata, decrypt_threshold_meta, disclosure_mode, encrypt_threshold_meta,
-    generate_meta_key, read_threshold_params, stamp_disclosure_attrs,
+    ThresholdMetadata, disclosure_mode, read_threshold_params, stamp_disclosure_attrs,
 };
+#[cfg(feature = "chacha20")]
+pub use threshold_meta::{decrypt_threshold_meta, encrypt_threshold_meta, generate_meta_key};
 /// XMSS-SHA2_10/16/20_256 stateful hash-based signature implementation; RFC 8391
 #[cfg(feature = "xmss")]
 pub mod xmss;
@@ -132,31 +131,4 @@ pub trait ThresholdDisclosureView {
         meta_key: Option<&[u8]>,
         current_meta_key: Option<&[u8]>,
     ) -> Result<Multisig, Error>;
-}
-
-/// trait for getting the other views
-///
-/// Deprecated: construct views with [`ViewBuilder`](builder::ViewBuilder)
-/// instead. This trait and its impl for `Multisig` remain as a
-/// source-compatible delegating shim.
-///
-/// Note: `multi_key::Views` is a different, unrelated trait; this
-/// deprecation does not affect it.
-#[deprecated(
-    since = "1.5.0",
-    note = "use ViewBuilder; this trait will be removed in 2.0.0. multi_key::Views is a different, unrelated trait"
-)]
-pub trait Views {
-    /// Provide a read-only view to access the signature attributes
-    fn attr_view<'a>(&'a self) -> Result<Box<dyn AttrView + 'a>, Error>;
-    /// Provide a read-only view to access signature data
-    fn data_view<'a>(&'a self) -> Result<Box<dyn DataView + 'a>, Error>;
-    /// Provide a view for converting to other signature formats
-    fn conv_view<'a>(&'a self) -> Result<Box<dyn ConvView + 'a>, Error>;
-    /// Provide a read-only view to access the threshold signature attributes
-    fn threshold_attr_view<'a>(&'a self) -> Result<Box<dyn ThresholdAttrView + 'a>, Error>;
-    /// Provide the view for adding a share to a multisig
-    fn threshold_view<'a>(&'a self) -> Result<Box<dyn ThresholdView + 'a>, Error>;
-    /// Provide an interface for threshold disclosure mode operations
-    fn disclosure_view<'a>(&'a self) -> Result<Box<dyn ThresholdDisclosureView + 'a>, Error>;
 }

@@ -1,60 +1,61 @@
 [package]
-name = "multi-sig"
-version = "1.6.0"
-edition = "2024"
-rust-version = "1.99"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
-description = "Multisig self-describing multicodec implementation for digital signatures"
-repository = "https://github.com/cryptidtech/multi-sig.git"
-readme = "README.md"
-license = "Apache-2.0"
-keywords = ["multiformats", "multisig", "signatures", "crypto"]
 categories = ["cryptography", "encoding"]
+description = "Multisig self-describing multicodec implementation for digital signatures"
+edition = "2024"
+keywords = ["multiformats", "multisig", "signatures", "crypto"]
+license = "Apache-2.0"
+name = "multi-sig"
+readme = "README.md"
+repository = "https://github.com/cryptidtech/multi-sig.git"
+rust-version = "1.99"
+version = "2.0.0"
 
 [features]
-default = ["serde", "lamport", "xmss"]
+# BLS12-381 signatures, signature shares, and share combining
+bls12-381 = ["dep:blsful"]
+# ChaCha20-Poly1305 encryption of threshold metadata (partial and fully
+# confidential disclosure modes)
+chacha20 = ["dep:chacha20poly1305", "dep:getrandom", "dep:zeroize"]
+default = ["bls12-381", "chacha20", "lamport", "serde", "xmss"]
+# Lamport and Merkle-Lamport signature views
+lamport = ["dep:blake2", "dep:blake3", "dep:lamport_signature_plus", "dep:sha2", "dep:sha3", "dep:shake"]
 # `serde` is now a required dependency because the core `threshold_meta`
 # module (always compiled) derives `Serialize`/`Deserialize` for its CBOR
 # blob types. The feature flag is retained for backward compatibility and
 # controls only the public `serde` impl module.
 serde = []
-lamport = ["dep:lamport_signature_plus", "dep:sha3", "dep:sha2", "dep:blake2", "dep:shake", "dep:blake3"]
-xmss = ["dep:xmss"]
+# XMSS signature views; they carry signature bytes only, so no XMSS crate is needed
+xmss = []
 
-# Local multi-codec 1.4.0 until it is published (remove at release).
 [dependencies]
-ciborium = "0.2"
-chacha20poly1305 = "0.11"
-elliptic-curve = "0.14"
-getrandom = { version = "0.4" }
 # blsful configured per-target below (blst for native, rust for wasm)
+blake2 = { version = "0.11.0", optional = true }
+blake3 = { version = "1.8", optional = true }
+chacha20poly1305 = { version = "0.11", optional = true }
+getrandom = { version = "0.4", optional = true }
+lamport_signature_plus = { version = "0.5.0", optional = true }
 multi-base = { version = "1.1", default-features = false }
 multi-codec = "1.6"
 multi-trait = { version = "1.1", default-features = false }
 multi-util = "1.2"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_cbor_2 = "0.13.0"
+sha2 = { version = "0.11", optional = true }
+sha3 = { version = "0.12", optional = true }
+shake = { version = "0.1", optional = true }
 ssh-encoding = "0.3"
+ssh-key = { version = "0.7.0-rc.11", default-features = false, features = ["alloc"] }
 thiserror = { version = "2.0" }
 unsigned-varint = { version = "0.8", features = ["std"] }
-zeroize = "1"
-# Lamport support (feature-gated, default-enabled)
-lamport_signature_plus = { version = "0.5.0", optional = true }
-sha3 = { version = "0.12", optional = true }
-sha2 = { version = "0.11", optional = true }
-blake2 = { version = "0.11.0", optional = true }
-shake = { version = "0.1", optional = true }
-blake3 = { version = "1.8", optional = true }
-# XMSS support (feature-gated, default-enabled)
-xmss = { version = "0.1.0-pre.0", optional = true }
+zeroize = { version = "1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-blsful = { version = "4.1.0", default-features = false, features = ["rust"] }
-getrandom = { version = "0.4", features = ["wasm_js"] }
-ssh-key = { version = "0.7.0-rc.11", default-features = false, features = ["alloc", "ecdsa", "ed25519"] }
+blsful = { version = "4.1.0", default-features = false, features = ["rust"], optional = true }
+getrandom = { version = "0.4", features = ["wasm_js"], optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-blsful = { version = "4.1.0", default-features = false, features = ["blst"] }
-ssh-key = { version = "0.7.0-rc.11", default-features = false, features = ["alloc", "ecdsa", "ed25519"] }
+blsful = { version = "4.1.0", default-features = false, features = ["blst"], optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
@@ -65,15 +66,72 @@ serde_json = "1.0"
 serde_test = "1.0"
 
 [[bench]]
-name = "multisig_bench"
 harness = false
+name = "multisig_bench"
 path = "benches/multisig_bench.rs"
 
+# Pedantic, nursery, and cargo lints are on. The allows suppress stylistic
+# lints that would require large-scale churn for minimal security benefit.
+# Each is reviewed individually.
 [lints.clippy]
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
+# false positives in complex match arms
+branches_sharing_code = "allow"
 cargo = { level = "warn", priority = -1 }
+# intentional in codec conversions
+cast_possible_truncation = "allow"
+# wrapping common terms in backticks is stylistic
+doc_markdown = "allow"
+# explicit lifetimes aid readability
+elidable_lifetime_names = "allow"
+# glob imports of enums are used judiciously
+enum_glob_use = "allow"
+# into_iter() is idiomatic
+explicit_iter_loop = "allow"
+# stylistic
+if_not_else = "allow"
+# module-level items are ordered logically
+items_after_statements = "allow"
+# many functions can't be const due to trait bounds
+missing_const_for_fn = "allow"
+# public APIs are documented; this is noisy on impl blocks and trait impls
+missing_errors_doc = "allow"
+# we avoid panics; where they exist they are documented
+missing_panics_doc = "allow"
+# blsful pulls in duplicate versions (tracked)
 multiple_crate_versions = { level = "allow", priority = 1 }
+# too noisy on every function returning Result
+must_use_candidate = "allow"
+# false positives in test code
+needless_for_each = "allow"
+nursery = { level = "warn", priority = -1 }
+# sometimes less readable than if-let
+option_if_let_else = "allow"
+# false positives for cheap constructors like BTreeMap::new
+or_fun_call = "allow"
+pedantic = { level = "warn", priority = -1 }
+# needed for crate-internal module visibility
+redundant_pub_crate = "allow"
+# builder pattern returns self by design
+return_self_not_must_use = "allow"
+# stylistic preference
+semicolon_if_nothing_returned = "allow"
+# single-arm match with else is clearer in context
+single_match_else = "allow"
+# crate-level doc paragraph length
+too_long_first_doc_paragraph = "allow"
+# large match arms are inherent to this crate
+too_many_lines = "allow"
+# stylistic; format strings are clear as-is
+uninlined_format_args = "allow"
+# false positive
+unnecessary_semicolon = "allow"
+# causes churn in match arms on large enums
+use_self = "allow"
 
 [lints.rust]
+missing_docs = "warn"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
 unsafe_code = "deny"
+unused_import_braces = "deny"
+unused_qualifications = "deny"

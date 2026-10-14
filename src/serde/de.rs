@@ -30,28 +30,16 @@ impl<'de> Deserialize<'de> for AttrId {
             where
                 E: Error,
             {
-                AttrId::try_from(c).map_err(|e| Error::custom(e.to_string()))
+                AttrId::try_from(c).map_err(E::custom)
             }
 
+            // serde's default `visit_borrowed_str` and `visit_string`
+            // forward here
             fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
             where
                 E: Error,
             {
-                AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))
-            }
-
-            fn visit_borrowed_str<E>(self, s: &'de str) -> Result<Self::Value, E>
-            where
-                E: Error,
-            {
-                AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))
-            }
-
-            fn visit_string<E>(self, s: String) -> Result<Self::Value, E>
-            where
-                E: Error,
-            {
-                AttrId::try_from(s.as_str()).map_err(|e| Error::custom(e.to_string()))
+                s.parse().map_err(E::custom)
             }
         }
 
@@ -113,10 +101,9 @@ impl<'de> Deserialize<'de> for Multisig {
                             }
                             let attr: Vec<(AttrId, EncodedVarbytes)> = map.next_value()?;
                             let mut a = Attributes::new();
-                            attr.iter()
-                                .try_for_each(|(id, attr)| -> Result<(), V::Error> {
-                                    let i = *id;
-                                    let v: Vec<u8> = (**attr).clone().to_inner();
+                            attr.into_iter()
+                                .try_for_each(|(i, attr)| -> Result<(), V::Error> {
+                                    let v: Vec<u8> = attr.to_inner().to_inner();
                                     if a.insert(i, v).is_some() {
                                         return Err(Error::duplicate_field(
                                             "duplicate attribute id",
@@ -143,35 +130,29 @@ impl<'de> Deserialize<'de> for Multisig {
         if deserializer.is_human_readable() {
             deserializer.deserialize_struct(ms::SIGIL.as_str(), FIELDS, MultisigVisitor)
         } else {
-            // Use `deserialize_byte_buf` with a visitor that accepts both
-            // borrowed and owned bytes. This works with `serde_test`
-            // (BorrowedBytes), `serde_cbor` (borrowed), and `ciborium`
-            // (owned). The previous `&'de [u8]` bound only worked with
-            // deserializers that support borrowing from input.
+            // `deserialize_byte_buf` with a visitor that accepts both borrowed
+            // and owned bytes works with `serde_test` (BorrowedBytes),
+            // `serde_cbor_2` (borrowed), and reader-based decoders (owned).
+            // Both paths decode straight from the input bytes.
             struct ByteBufVisitor;
 
-            impl<'de> Visitor<'de> for ByteBufVisitor {
-                type Value = Vec<u8>;
+            impl Visitor<'_> for ByteBufVisitor {
+                type Value = Multisig;
 
                 fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                     f.write_str("byte buffer")
                 }
 
-                fn visit_borrowed_bytes<E: Error>(self, v: &'de [u8]) -> Result<Self::Value, E> {
-                    Ok(v.to_vec())
-                }
-
                 fn visit_bytes<E: Error>(self, v: &[u8]) -> Result<Self::Value, E> {
-                    Ok(v.to_vec())
+                    Multisig::try_from(v).map_err(E::custom)
                 }
 
                 fn visit_byte_buf<E: Error>(self, v: Vec<u8>) -> Result<Self::Value, E> {
-                    Ok(v)
+                    self.visit_bytes(v.as_slice())
                 }
             }
 
-            let b = deserializer.deserialize_byte_buf(ByteBufVisitor)?;
-            Ok(Self::try_from(b.as_slice()).map_err(|e| Error::custom(e.to_string()))?)
+            deserializer.deserialize_byte_buf(ByteBufVisitor)
         }
     }
 }

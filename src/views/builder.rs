@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Builder-pattern construction of the read-only [`Multisig`] view types.
 //!
-//! [`ViewBuilder`](crate::views::builder::ViewBuilder) replaces direct trait-method view access with a fluent
+//! [`ViewBuilder`] replaces direct trait-method view access with a fluent
 //! shape. It serves two purposes:
 //!
-//! 1. Standard codecs reach their built-in views through the same dispatch
-//!    core that backs the `Views` extension trait.
+//! 1. Standard codecs reach their built-in views through the crate's
+//!    dispatch core.
 //! 2. Signature schemes that the crate does not standardize yet carry a codec
 //!    outside [`SIG_CODECS`](crate::SIG_CODECS) and reach their views through
 //!    caller-supplied local-codec factories (issue #3).
@@ -54,7 +54,7 @@
 //! # Dispatch order
 //!
 //! `build` consults the built-in codec dispatch first. Only when it reports
-//! [`AttributesError::UnsupportedCodec`](crate::error::AttributesError::UnsupportedCodec)
+//! [`AttributesError::UnsupportedCodec`]
 //! for the codec carried by the `Multisig` is a registered local factory
 //! consulted. A factory registered for any other codec is ignored and the
 //! original error propagates. A built-in view is therefore never overridden
@@ -124,11 +124,11 @@
 //! # Cross-crate alignment
 //!
 //! `multi_key::ViewBuilder` carries the same fluent-selector shape for the
-//! companion `multi-key` crate; `multi_key::Views` is a separate, unrelated
-//! trait. This module also records the documented deviation from the issue
-//! #3 callback sketch: this crate has six view traits and no single `View`
-//! trait, so the type-safe realization of the callback capability is a
-//! per-kind fluent selector plus a per-kind typed factory.
+//! companion `multi-key` crate. This module also records the documented
+//! deviation from the issue #3 callback sketch: this crate has six view
+//! traits and no single `View` trait, so the type-safe realization of the
+//! callback capability is a per-kind fluent selector plus a per-kind typed
+//! factory.
 
 use crate::{
     AttrView, ConvView, DataView, Error, Multisig, ThresholdAttrView, ThresholdDisclosureView,
@@ -631,6 +631,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "bls12-381")]
     #[test]
     fn test_representative_kinds_build() {
         let ms = Builder::new(Codec::EddsaMsig)
