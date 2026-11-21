@@ -25,6 +25,11 @@ lamport = ["dep:blake2", "dep:blake3", "dep:lamport_signature_plus", "dep:sha2",
 # blob types. The feature flag is retained for backward compatibility and
 # controls only the public `serde` impl module.
 serde = []
+# Feature names required by the shared family CI workflow test step. No code
+# in this crate gates on these yet.
+deprecated = []
+legacy_chacha20_fallback = []
+wasm = []
 # XMSS signature views; they carry signature bytes only, so no XMSS crate is needed
 xmss = []
 
